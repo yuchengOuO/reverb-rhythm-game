@@ -1,0 +1,2 @@
+# 把音檔（mp3 / ogg / wav）放進這個資料夾。
+# 這裡的檔案不會被 Git 追蹤（見 .gitignore），詳見 README 第 2 節。

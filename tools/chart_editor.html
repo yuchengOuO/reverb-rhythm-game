@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>殘響 · 譜面編輯器</title>
+<style>
+  :root{
+    --bg:#070a11; --panel:#0b1220; --panel2:#0e1727; --line:#1a2740;
+    --text:#c9d8ea; --dim:#6b87a8; --accent:#38bdf8; --pink:#f472b6;
+    --gold:#fbbf24; --green:#34d399; --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;overflow:hidden}
+  #app{display:grid;grid-template-rows:50px 1fr 132px;height:100%}
+  header{display:flex;align-items:center;gap:10px;padding:0 14px;
+    background:linear-gradient(180deg,#0d1626,#080d16);border-bottom:1px solid var(--line)}
+  .brand{font-size:20px;font-weight:700;letter-spacing:2px;color:#eaf4ff}
+  .brand span{font-size:11px;font-weight:400;letter-spacing:1px;color:var(--dim);margin-left:8px}
+  .spacer{flex:1}
+  .stat{font-size:11px;color:var(--dim);white-space:nowrap}
+  .stat b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+  button{background:#142033;color:#d7e6f7;border:1px solid #24354f;border-radius:7px;
+    padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  button:hover{background:#1b2b43;border-color:var(--accent)}
+  button.primary{background:#0e3a52;border-color:#1d6d92;color:#c8f0ff}
+  button.primary:hover{background:#12506f}
+  button.ghost{background:transparent}
+  button.danger:hover{border-color:var(--danger);color:#ffc9c9}
+  #status{font-size:11px;color:var(--dim);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #body{display:grid;grid-template-columns:272px 1fr 292px;min-height:0}
+  aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:10px}
+  aside#right{border-right:none;border-left:1px solid var(--line)}
+  section{margin-bottom:16px}
+  h3{font-size:11px;letter-spacing:1.5px;color:var(--dim);margin:0 0 8px;font-weight:600}
+  label{display:block;font-size:11px;color:var(--dim);margin-bottom:6px}
+  input,select{width:100%;background:#0a111d;border:1px solid #1e2d45;border-radius:6px;
+    color:var(--text);padding:5px 7px;font-size:12px;font-family:inherit;margin-top:3px}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:6px;margin-bottom:6px}
+  .row > *{flex:1}
+  .list{display:flex;flex-direction:column;gap:4px;max-height:190px;overflow-y:auto}
+  .item{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid #16233a;
+    border-radius:6px;padding:4px 7px;font-size:11px;cursor:pointer}
+  .item:hover{border-color:#2b4260}
+  .item.active{border-color:var(--accent);background:#0f2233}
+  .item .grow{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .del{color:#7d94ad;padding:0 4px;border-radius:4px}
+  .item .del:hover{color:#ffb4b4;background:#2a1620}
+  .hint{font-size:10px;color:#54708e;line-height:1.5;margin:6px 0}
+  #center{position:relative;min-width:0;background:#050810}
+  #roll{display:block;width:100%;height:100%;cursor:crosshair}
+  canvas#preview{width:100%;height:190px;display:block;background:#060a12;border:1px solid var(--line);border-radius:8px}
+  footer{background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column}
+  .transport{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #131f31}
+  .transport label{display:flex;align-items:center;gap:6px;margin:0;font-size:11px}
+  .transport input[type=range]{width:120px;margin:0}
+  .transport select{width:auto;margin:0}
+  #posLabel{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;margin-left:auto}
+  #wave{display:block;width:100%;flex:1;min-height:0;cursor:pointer}
+  /* 隊形微調 */
+  #laneFields{margin:6px 0 8px}
+  #laneFields .row{gap:4px;margin:0}
+  #laneFields label{font-size:10px;margin:0}
+  #laneFields input{padding:3px 4px;font-size:11px}
+  .sensRow{display:flex;align-items:center;gap:8px;margin:4px 0 8px}
+  .sensRow input[type=range]{flex:1;width:auto;margin:0;padding:0;background:none;border:none}
+  .sensRow span{font-size:10px;color:var(--dim);width:38px;text-align:right;font-variant-numeric:tabular-nums}
+  /* 放大編輯（全螢幕覆蓋層） */
+  #bigEdit{position:fixed;inset:0;z-index:60;background:#04070d;display:flex;flex-direction:column}
+  #bigEdit.hidden{display:none}
+  .bigBar{display:flex;align-items:center;gap:14px;padding:10px 16px;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  .bigBar .bigTitle{font-size:13px;color:var(--text);white-space:nowrap}
+  .bigBar .bigTitle b{font-variant-numeric:tabular-nums}
+  .bigBar .sensRow{margin:0;width:260px}
+  #bigStage{flex:1;min-height:0;padding:14px}
+  #bigStage canvas#preview{height:100%;border-radius:10px}
+  .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;
+    background:#16283c;color:#8fb3d4;margin-left:4px}
+  .kbd{display:inline-block;padding:1px 5px;border:1px solid #2b3f59;border-radius:4px;
+    font-size:10px;color:#9db8d4;background:#0d1624}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">殘響 <span>CHART EDITOR</span></div>
+    <button id="btnAudio">載入音樂</button>
+    <button id="btnChart">載入譜面</button>
+    <button id="btnExport" class="primary">匯出 JSON</button>
+    <button id="btnRestore" class="ghost" title="還原瀏覽器自動儲存的草稿">還原草稿</button>
+    <div class="spacer"></div>
+    <div class="stat">BPM <b id="statBpm">120</b></div>
+    <div class="stat">拍 <b id="statBeat">0.00</b></div>
+    <div class="stat">時間 <b id="statTime">0.00s</b></div>
+    <div class="stat">音符 <b id="statNotes">0</b></div>
+    <div id="status">就緒</div>
+  </header>
+
+  <div id="body">
+    <aside id="left">
+      <section>
+        <h3>歌曲資訊</h3>
+        <label>曲名<input id="inTitle" value="Untitled"></label>
+        <label>作者<input id="inArtist" value=""></label>
+        <div class="row">
+          <label>難度<input id="inDiff" value="Normal"></label>
+          <label>等級<input id="inLevel" type="number" min="1" max="20" value="8"></label>
+        </div>
+        <label>音檔路徑<input id="inAudio" placeholder="res://assets/audio/song.mp3"></label>
+      </section>
+
+      <section>
+        <h3>節奏</h3>
+        <div class="row">
+          <label>BPM<input id="inBpm" type="number" step="0.01" value="120"></label>
+          <label>Offset 秒<input id="inOffset" type="number" step="0.001" value="0"></label>
+        </div>
+        <button id="btnAddBpm">在目前拍插入 BPM 段</button>
+        <div id="bpmList" class="list" style="margin-top:6px"></div>
+      </section>
+
+      <section>
+        <h3>BPM 分析</h3>
+        <div class="row">
+          <button id="btnAnalyze">分析 BPM</button>
+          <button id="btnTap">Tap Tempo</button>
+        </div>
+        <div id="bpmResults" class="list" style="max-height:none"></div>
+      </section>
+
+      <section>
+        <h3>操作說明</h3>
+        <div class="hint">
+          <span class="kbd">左鍵</span> 新增音符　<span class="kbd">拖曳</span> 變成長按<br>
+          <span class="kbd">右鍵</span> 刪除　<span class="kbd">拖曳音符</span> 移動<br>
+          <span class="kbd">空白</span> 播放 / 暫停　<span class="kbd">1–4</span> 在目前拍放音符<br>
+          <span class="kbd">滾輪</span> 捲動畫面（載入音樂後 = 移動音樂進度）<br>
+          <span class="kbd">Shift+滾輪</span> 縮放　<span class="kbd">Del</span> 刪除選取<br>
+          <span class="kbd">Ctrl+S</span> 匯出
+        </div>
+      </section>
+    </aside>
+
+    <div id="center">
+      <canvas id="roll"></canvas>
+    </div>
+
+    <aside id="right">
+      <section>
+        <h3>隊形預覽</h3>
+        <canvas id="preview"></canvas>
+        <div class="hint" id="previewHint">拖曳軌道左右移動；Shift + 拖曳旋轉；Alt + 拖曳縮放。</div>
+        <div class="sensRow">
+          <label style="margin:0">靈敏度</label>
+          <input id="inSens" type="range" min="10" max="100" step="5" value="35">
+          <span id="sensVal">0.35×</span>
+        </div>
+        <div class="row">
+          <button id="btnBigEdit">放大編輯</button>
+          <button id="btnResetForm" class="danger">重置隊形</button>
+        </div>
+        <div id="laneFields" class="hint">點一下預覽中的軌道，可以用數值微調。</div>
+        <button id="btnAddLane">在目前拍新增關鍵影格</button>
+      </section>
+
+      <section>
+        <h3>軌道關鍵影格</h3>
+        <div id="laneList" class="list"></div>
+        <button id="btnClearLanes" class="danger" style="margin-top:6px">清空所有關鍵影格</button>
+      </section>
+
+      <section>
+        <h3>視窗事件</h3>
+        <select id="selWinType">
+          <option value="move">移動視窗</option>
+          <option value="resize">縮放視窗</option>
+          <option value="recenter">重置視窗位置（回畫面中央）</option>
+          <option value="shake">震動</option>
+          <option value="split">分割成多視窗</option>
+          <option value="merge">合併視窗</option>
+          <option value="ontop">置頂開關</option>
+          <option value="borderless">邊框開關</option>
+        </select>
+        <div id="winParams" style="margin-top:6px"></div>
+        <button id="btnAddWin" style="margin-top:6px">在目前拍新增</button>
+        <div id="winList" class="list" style="margin-top:6px"></div>
+      </section>
+    </aside>
+  </div>
+
+  <footer>
+    <div class="transport">
+      <button id="btnPlay">▶ 播放</button>
+      <button id="btnStop">■ 停止</button>
+      <label>吸附
+        <select id="selSnap">
+          <option value="1">1/1 拍</option>
+          <option value="2">1/2 拍</option>
+          <option value="3">1/3 拍</option>
+          <option value="4" selected>1/4 拍</option>
+          <option value="6">1/6 拍</option>
+          <option value="8">1/8 拍</option>
+        </select>
+      </label>
+      <label>縮放 <input id="inZoom" type="range" min="40" max="220" value="90"></label>
+      <span id="posLabel">0.00 / 0.00</span>
+    </div>
+    <canvas id="wave"></canvas>
+  </footer>
+</div>
+
+<div id="bigEdit" class="hidden">
+  <div class="bigBar">
+    <span class="bigTitle">隊形編輯　·　拍 <b id="bigBeat">0.00</b></span>
+    <div class="sensRow">
+      <label style="margin:0">靈敏度</label>
+      <input id="inSensBig" type="range" min="10" max="100" step="5" value="35">
+      <span id="sensValBig">0.35×</span>
+    </div>
+    <span class="spacer" style="flex:1"></span>
+    <button id="btnBigReset" class="danger">重置隊形</button>
+    <button id="btnBigApply" class="primary">完成</button>
+  </div>
+  <div id="bigStage"></div>
+</div>
+
+<input type="file" id="fileAudio" accept="audio/*" hidden>
+<input type="file" id="fileChart" accept=".json,application/json" hidden>
+
+<script>
+"use strict";
+
+// ===========================================================================
+// 狀態
+// ===========================================================================
+const state = {
+  meta: { title: "Untitled", artist: "", difficulty: "Normal", level: 8, audio: "" },
+  timing: { offset: 0, bpm_segments: [{ beat: 0, bpm: 120 }] },
+  notes: [],
+  lanes: [],
+  windows: [],
+};
+
+const audio = {
+  ctx: null, buffer: null, source: null,
+  playing: false, startCtx: 0, startOffset: 0, pos: 0, name: "",
+};
+
+let selected = null;
+let dirty = false;
+let scrollBeat = 0;
+let pxPerBeat = 90;
+const PLAYHEAD_RATIO = 0.62;
+
+const LANE_COLORS = ["#ffffff", "#ffffff", "#ffffff", "#ffffff"];
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const round = (v, n = 4) => Math.round(v * 10 ** n) / 10 ** n;
+
+function setStatus(msg, ms = 3500) {
+  $("status").textContent = msg;
+  clearTimeout(setStatus._t);
+  if (ms) setStatus._t = setTimeout(() => ($("status").textContent = "就緒"), ms);
+}
+function markDirty() { dirty = true; }
+
+// ===========================================================================
+// 拍 ↔ 秒
+// ===========================================================================
+function bpmSegments() {
+  const segs = state.timing.bpm_segments
+    .filter((s) => s && s.bpm > 0)
+    .slice()
+    .sort((a, b) => a.beat - b.beat);
+  if (!segs.length) return [{ beat: 0, bpm: 120 }];
+  if (segs[0].beat > 0) segs.unshift({ beat: 0, bpm: segs[0].bpm });
+  return segs;
+}
+
+function timeOfBeat(beat) {
+  const segs = bpmSegments();
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    const next = i + 1 < segs.length ? segs[i + 1].beat : Infinity;
+    if (beat <= next) return acc + (beat - s.beat) * 60 / s.bpm;
+    acc += (next - s.beat) * 60 / s.bpm;
+  }
+  return acc;
+}
+
+function beatOfTime(t) {
+  const segs = bpmSegments();
+  let t0 = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    const span = i + 1 < segs.length ? (segs[i + 1].beat - s.beat) * 60 / s.bpm : Infinity;
+    if (t <= t0 + span) return s.beat + (t - t0) * s.bpm / 60;
+    t0 += span;
+  }
+  return segs[segs.length - 1].beat;
+}
+
+const songTimeOfBeat = (beat) => state.timing.offset + timeOfBeat(beat);
+const beatAtSongTime = (t) => beatOfTime(t - state.timing.offset);
+
+function snapStep() { return 1 / parseInt($("selSnap").value, 10); }
+function snapBeat(b) { const s = snapStep(); return Math.round(b / s) * s; }
+
+// ===========================================================================
+// 音訊
+// ===========================================================================
+function ensureCtx() {
+  if (!audio.ctx) audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audio.ctx.state === "suspended") audio.ctx.resume();
+  return audio.ctx;
+}
+
+function songTime() {
+  if (!audio.playing) return audio.pos;
+  return audio.startOffset + (audio.ctx.currentTime - audio.startCtx);
+}
+
+function audioDuration() { return audio.buffer ? audio.buffer.duration : 0; }
+
+function play() {
+  if (!audio.buffer) { setStatus("請先載入音樂檔"); return; }
+  if (audio.playing) return;
+  const ctx = ensureCtx();
+  const src = ctx.createBufferSource();
+  src.buffer = audio.buffer;
+  src.connect(ctx.destination);
+  const offset = clamp(audio.pos, 0, Math.max(0, audio.buffer.duration - 0.02));
+  src.start(0, offset);
+  audio.source = src;
+  audio.playing = true;
+  audio.startCtx = ctx.currentTime;
+  audio.startOffset = offset;
+  src.onended = () => {
+    if (audio.source === src) {
+      audio.playing = false;
+      audio.source = null;
+      audio.pos = audio.buffer.duration;
+    }
+  };
+  $("btnPlay").textContent = "⏸ 暫停";
+}
+
+function pause() {
+  if (!audio.playing) return;
+  audio.pos = clamp(songTime(), 0, audioDuration());
+  audio.playing = false;
+  if (audio.source) {
+    const s = audio.source;
+    audio.source = null;
+    try { s.stop(); } catch (e) {}
+  }
+  $("btnPlay").textContent = "▶ 播放";
+}
+
+function togglePlay() { audio.playing ? pause() : play(); }
+
+function stop() {
+  pause();
+  audio.pos = 0;
+  scrollBeat = 0;
+}
+
+// seek：有音频时一律把 scrollBeat 归零，保证「基准线 = 音乐位置」
+function seek(t) {
+  const wasPlaying = audio.playing;
+  if (wasPlaying) pause();
+  audio.pos = clamp(t, 0, Math.max(0, audioDuration()));
+  if (audio.buffer) scrollBeat = 0;
+  if (wasPlaying) play();
+}
+
+function currentBeat() { return beatAtSongTime(songTime()); }
+
+// ===========================================================================
+// 波形
+// ===========================================================================
+let wavePeaks = null;
+
+// 波形離屏緩存：靜態部分只畫一次，每幀只畫播放頭
+const waveCache = document.createElement("canvas");
+let waveCacheDirty = true;
+
+function computePeaks(buffer, buckets = 2400) {
+  const ch0 = buffer.getChannelData(0);
+  const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+  const peaks = new Float32Array(buckets * 2);
+  const per = Math.floor(ch0.length / buckets) || 1;
+  for (let i = 0; i < buckets; i++) {
+    let mn = 0, mx = 0;
+    const start = i * per;
+    for (let j = 0; j < per; j += 4) {
+      const v = ch0[start + j] + (ch1 ? ch1[start + j] : 0);
+      if (v < mn) mn = v;
+      if (v > mx) mx = v;
+    }
+    peaks[i * 2] = mn / (ch1 ? 2 : 1);
+    peaks[i * 2 + 1] = mx / (ch1 ? 2 : 1);
+  }
+  return peaks;
+}
+
+function renderWaveCache(w, h, dpr) {
+  waveCache.width = Math.max(1, Math.round(w * dpr));
+  waveCache.height = Math.max(1, Math.round(h * dpr));
+  const ctx = waveCache.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#060a12";
+  ctx.fillRect(0, 0, w, h);
+
+  const dur = audioDuration();
+  if (!wavePeaks || dur <= 0) {
+    ctx.fillStyle = "#33506e";
+    ctx.font = "11px sans-serif";
+    ctx.fillText("尚未載入音樂", 12, h / 2 + 4);
+    return;
+  }
+
+  const mid = h / 2;
+  const n = wavePeaks.length / 2;
+  ctx.strokeStyle = "#1e4a68";
+  ctx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const i = Math.floor((x / w) * n);
+    const mn = wavePeaks[i * 2], mx = wavePeaks[i * 2 + 1];
+    ctx.moveTo(x, mid - mx * mid * 0.92);
+    ctx.lineTo(x, mid - mn * mid * 0.92);
+  }
+  ctx.stroke();
+
+  // 拍線
+  const totalBeats = beatOfTime(dur);
+  const pxPerBeatWave = w / Math.max(totalBeats, 1);
+  if (pxPerBeatWave > 5) {
+    ctx.strokeStyle = "rgba(90,130,170,0.16)";
+    ctx.beginPath();
+    for (let b = 0; b <= totalBeats; b++) {
+      const x = (songTimeOfBeat(b) / dur) * w;
+      if (x < 0 || x > w) continue;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+  }
+
+  // 音符密度
+  ctx.fillStyle = "rgba(56,189,248,0.5)";
+  for (const note of state.notes) {
+    const x = (songTimeOfBeat(note.beat) / dur) * w;
+    ctx.fillRect(x - 1, h - 10, 2, 10);
+  }
+}
+
+function drawWave() {
+  const cv = $("wave");
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    waveCacheDirty = true;
+  }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (waveCacheDirty) {
+    renderWaveCache(w, h, dpr);
+    waveCacheDirty = false;
+  }
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(waveCache, 0, 0, w, h);
+
+  const dur = audioDuration();
+  if (!wavePeaks || dur <= 0) return;
+
+  // 播放頭（唯一每幀變動的部分）
+  const px = (songTime() / dur) * w;
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px, 0);
+  ctx.lineTo(px, h);
+  ctx.stroke();
+}
+
+$("wave").addEventListener("click", (e) => {
+  const rect = e.target.getBoundingClientRect();
+  const f = (e.clientX - rect.left) / rect.width;
+  seek(f * audioDuration());
+});
+
+// ===========================================================================
+// 鋼琴卷軸
+// ===========================================================================
+const rollEl = $("roll");
+const rollCtx = rollEl.getContext("2d");
+let rollW = 0, rollH = 0;
+const SIDE = 34;
+
+function resizeRoll() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = rollEl.clientWidth, h = rollEl.clientHeight;
+  rollW = w; rollH = h;
+  if (rollEl.width !== Math.round(w * dpr) || rollEl.height !== Math.round(h * dpr)) {
+    rollEl.width = Math.round(w * dpr);
+    rollEl.height = Math.round(h * dpr);
+  }
+  rollCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function laneWidth() { return (rollW - SIDE * 2) / 4; }
+function laneX(i) { return SIDE + i * laneWidth(); }
+function laneAtX(x) {
+  const i = Math.floor((x - SIDE) / laneWidth());
+  return i >= 0 && i < 4 ? i : -1;
+}
+function playheadY() { return rollH * PLAYHEAD_RATIO; }
+function yOfBeat(beat) { return playheadY() - (beat - currentBeat() - scrollBeat) * pxPerBeat; }
+function beatAtY(y) { return currentBeat() + scrollBeat + (playheadY() - y) / pxPerBeat; }
+
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawRoll() {
+  if (rollW !== rollEl.clientWidth || rollH !== rollEl.clientHeight) resizeRoll();
+  const ctx = rollCtx;
+  const w = rollW, h = rollH;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#050810";
+  ctx.fillRect(0, 0, w, h);
+
+  const lw = laneWidth();
+  const cb = currentBeat();
+
+  // 軌道底色
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.016)" : "rgba(255,255,255,0.028)";
+    ctx.fillRect(laneX(i), 0, lw, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.beginPath();
+    ctx.moveTo(laneX(i) + 0.5, 0);
+    ctx.lineTo(laneX(i) + 0.5, h);
+    ctx.stroke();
+  }
+
+  const bTop = beatAtY(0);
+  const bBot = beatAtY(h);
+  const step = snapStep();
+
+  // 小節 / 拍線
+  const b0 = Math.floor(bBot) - 1;
+  const b1 = Math.ceil(bTop) + 1;
+  for (let b = b0; b <= b1; b++) {
+    if (b < 0) continue;
+    const y = yOfBeat(b);
+    if (y < -20 || y > h + 20) continue;
+    const isBar = b % 4 === 0;
+    ctx.strokeStyle = isBar ? "rgba(120,170,220,0.22)" : "rgba(120,170,220,0.08)";
+    ctx.lineWidth = isBar ? 1.2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(SIDE, y + 0.5);
+    ctx.lineTo(w - SIDE, y + 0.5);
+    ctx.stroke();
+    if (isBar) {
+      ctx.fillStyle = "rgba(120,170,220,0.45)";
+      ctx.font = "10px ui-monospace,monospace";
+      ctx.fillText(String(b), 6, y + 3.5);
+    }
+  }
+
+  // 細分線
+  if (step < 1 && pxPerBeat * step > 7) {
+    ctx.strokeStyle = "rgba(120,170,220,0.035)";
+    for (let b = Math.floor(bBot / step) * step; b <= bTop; b += step) {
+      const y = yOfBeat(b);
+      if (y < 0 || y > h) continue;
+      ctx.beginPath();
+      ctx.moveTo(SIDE, y + 0.5);
+      ctx.lineTo(w - SIDE, y + 0.5);
+      ctx.stroke();
+    }
+  }
+
+  // 音符
+  for (const n of state.notes) {
+    const endBeat = n.beat + (n.len || 0);
+    if (endBeat < bBot - 2 || n.beat > bTop + 2) continue;
+    const y = yOfBeat(n.beat);
+    const x = laneX(n.lane);
+    const col = LANE_COLORS[n.lane];
+    const nh = 12;
+
+    if (n.len > 0) {
+      const y2 = yOfBeat(endBeat);
+      ctx.fillStyle = col + "33";
+      roundRect(ctx, x + 8, y2, lw - 16, Math.max(2, y - y2), 4);
+      ctx.fill();
+      ctx.strokeStyle = col + "88";
+      ctx.lineWidth = 1;
+      roundRect(ctx, x + 8, y2, lw - 16, Math.max(2, y - y2), 4);
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = col;
+    roundRect(ctx, x + 5, y - nh / 2, lw - 10, nh, 4);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(0,0,0,0.10)";
+    ctx.fillRect(x + 8, y - nh / 2 + 2, lw - 16, 2);
+
+    if (selected === n) {
+      ctx.strokeStyle = "#8ad8ff";
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, x + 3, y - nh / 2 - 2, lw - 6, nh + 4, 5);
+      ctx.stroke();
+    }
+  }
+
+  // 軌道關鍵影格標記
+  for (const k of state.lanes) {
+    const y = yOfBeat(k.beat);
+    if (y < -10 || y > h + 10) continue;
+    const x = laneX(k.lane) + lw - 7;
+    ctx.fillStyle = "rgba(251,191,36,0.75)";
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x, y + 4);
+    ctx.lineTo(x - 4, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 視窗事件標記
+  for (const ev of state.windows) {
+    const y = yOfBeat(ev.beat);
+    if (y < -10 || y > h + 10) continue;
+    ctx.fillStyle = "rgba(167,139,250,0.85)";
+    ctx.beginPath();
+    ctx.moveTo(w - SIDE + 6, y - 5);
+    ctx.lineTo(w - 8, y - 5);
+    ctx.lineTo(w - 8, y + 5);
+    ctx.lineTo(w - SIDE + 6, y + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.save();
+    ctx.translate(w - 9, y);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = "#0a0f19";
+    ctx.font = "bold 7px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(ev.type[0].toUpperCase(), 0, 2.5);
+    ctx.restore();
+  }
+
+  // 播放頭
+  const py = playheadY();
+  const grd = ctx.createLinearGradient(0, py - 1, w, py + 1);
+  grd.addColorStop(0, "rgba(56,189,248,0.2)");
+  grd.addColorStop(0.5, "#38bdf8");
+  grd.addColorStop(1, "rgba(56,189,248,0.2)");
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, py - 1, w, 2);
+
+  // 目前拍數
+  ctx.fillStyle = "rgba(56,189,248,0.85)";
+  ctx.font = "11px ui-monospace,monospace";
+  ctx.fillText(cb.toFixed(2), 6, py - 6);
+}
+
+// --- 互動 ---
+let drag = null;
+
+function noteAt(x, y) {
+  const lw = laneWidth();
+  for (let i = state.notes.length - 1; i >= 0; i--) {
+    const n = state.notes[i];
+    const nx = laneX(n.lane);
+    const ny = yOfBeat(n.beat);
+    if (x >= nx + 3 && x <= nx + lw - 3 && Math.abs(y - ny) <= 9) return n;
+    if (n.len > 0) {
+      const y2 = yOfBeat(n.beat + n.len);
+      if (x >= nx + 6 && x <= nx + lw - 6 && y >= y2 && y <= ny) return n;
+    }
+  }
+  return null;
+}
+
+rollEl.addEventListener("contextmenu", (e) => e.preventDefault());
+
+rollEl.addEventListener("mousedown", (e) => {
+  const rect = rollEl.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  const hit = noteAt(x, y);
+  if (e.button === 2) {
+    if (hit) {
+      state.notes.splice(state.notes.indexOf(hit), 1);
+      if (selected === hit) selected = null;
+      markDirty();
+      refreshLists();
+    }
+    return;
+  }
+  if (e.button !== 0) return;
+
+  if (hit) {
+    selected = hit;
+    drag = { mode: "move", note: hit };
+    return;
+  }
+
+  const lane = laneAtX(x);
+  if (lane < 0) return;
+  const beat = Math.max(0, snapBeat(beatAtY(y)));
+  const note = { beat, lane, len: 0 };
+  state.notes.push(note);
+  selected = note;
+  drag = { mode: "new", note, startBeat: beat };
+  markDirty();
+  refreshLists();
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const rect = rollEl.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  if (drag.mode === "move") {
+    const b = Math.max(0, snapBeat(beatAtY(y)));
+    const lane = laneAtX(x);
+    drag.note.beat = b;
+    if (lane >= 0) drag.note.lane = lane;
+  } else if (drag.mode === "new") {
+    const b = snapBeat(beatAtY(y));
+    drag.note.len = Math.max(0, round(drag.startBeat - b, 4));
+  }
+  markDirty();
+});
+
+window.addEventListener("mouseup", () => {
+  if (drag && drag.mode === "new" && drag.note.len === 0) drag.note.len = 0;
+  if (drag) refreshLists();
+  drag = null;
+});
+
+// 滾輪：有音樂 → 移動音樂進度（基準線=音樂位置）；沒音樂 → 只捲動畫面
+let wheelSeekTimer = null;
+rollEl.addEventListener("wheel", (e) => {
+  e.preventDefault();
+
+  if (e.shiftKey) {
+    pxPerBeat = clamp(pxPerBeat * (e.deltaY < 0 ? 1.1 : 0.9), 30, 400);
+    $("inZoom").value = pxPerBeat;
+    return;
+  }
+
+  const dir = e.deltaY > 0 ? 1 : -1;
+  const stepBeats = dir * (60 / pxPerBeat) * 2;
+
+  if (!audio.buffer) {
+    // 沒有音樂：只捲動畫布
+    scrollBeat += stepBeats;
+    scrollBeat = Math.max(scrollBeat, -currentBeat());
+    return;
+  }
+
+  // 有音樂：滾輪 = 移動音樂進度
+  const wasPlaying = audio.playing;
+  if (wasPlaying) pause();
+
+  const targetBeat = Math.max(0, currentBeat() + stepBeats);
+  audio.pos = clamp(songTimeOfBeat(targetBeat), 0, audioDuration());
+  scrollBeat = 0;
+
+  if (wasPlaying) {
+    clearTimeout(wheelSeekTimer);
+    wheelSeekTimer = setTimeout(() => { if (!audio.playing) play(); }, 120);
+  }
+}, { passive: false });
+
+// ===========================================================================
+// 隊形預覽
+// ===========================================================================
+const prevEl = $("preview");
+const prevCtx = prevEl.getContext("2d");
+let draft = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, rot: 0, scale: 1 }));
+let prevDrag = null;
+let draftDirty = false;
+let selLane = -1;
+
+// 靈敏度：1.0 = 滑鼠移動 1 像素，軌道就移動 1 像素。
+// 舊版固定 1.0，拖一下就跑掉半條軌道，很難放到想要的位置；
+// 預設 0.35，需要粗調時再自己拉高。
+function sens() { return (parseInt($("inSens").value, 10) || 35) / 100; }
+// 預覽軌道寬度。放大編輯時會跟著變寬（上限 150），操作空間才真的變大。
+function previewLaneWidth(w) { return Math.min(w / 5.2, 150); }
+
+function ease(kind, f) {
+  switch (kind) {
+    case "smooth": return f * f * (3 - 2 * f);
+    case "in": return f * f;
+    case "out": return 1 - (1 - f) * (1 - f);
+    case "back": {
+      const c = 1.70158, x = f - 1;
+      return 1 + (c + 1) * x * x * x + c * x * x;
+    }
+    case "step": return f < 1 ? 0 : 1;
+    default: return f;
+  }
+}
+
+// 關鍵影格按軌道分組緩存，避免每幀 filter + sort
+let laneKeysCache = null;
+function invalidateLaneCache() { laneKeysCache = null; }
+
+function laneStateAt(lane, beat) {
+  if (!laneKeysCache) {
+    laneKeysCache = [[], [], [], []];
+    for (const k of state.lanes) {
+      if (laneKeysCache[k.lane]) laneKeysCache[k.lane].push(k);
+    }
+    for (const arr of laneKeysCache) arr.sort((a, b) => a.beat - b.beat);
+  }
+  const keys = laneKeysCache[lane] || [];
+  const def = { x: 0, y: 0, rot: 0, scale: 1 };
+  if (!keys.length) return def;
+  if (beat <= keys[0].beat) return { ...def, ...keys[0] };
+  const last = keys[keys.length - 1];
+  if (beat >= last.beat) return { ...def, ...last };
+  let a = keys[0], b = keys[1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (keys[i].beat <= beat && beat <= keys[i + 1].beat) { a = keys[i]; b = keys[i + 1]; break; }
+  }
+  const span = Math.max(b.beat - a.beat, 0.0001);
+  const f = ease(a.ease || "smooth", clamp((beat - a.beat) / span, 0, 1));
+  return {
+    x: a.x + (b.x - a.x) * f,
+    y: (a.y || 0) + ((b.y || 0) - (a.y || 0)) * f,
+    rot: a.rot + (b.rot - a.rot) * f,
+    scale: (a.scale ?? 1) + ((b.scale ?? 1) - (a.scale ?? 1)) * f,
+  };
+}
+
+// 拍子沒變就不重算 draft
+let lastSyncBeat = -1e9;
+function syncDraftFromChart(force) {
+  if (prevDrag || draftDirty) return;
+  const b = currentBeat();
+  if (!force && Math.abs(b - lastSyncBeat) < 0.001) return;
+  lastSyncBeat = b;
+  for (let i = 0; i < 4; i++) {
+    const s = laneStateAt(i, b);
+    draft[i] = { x: s.x, y: s.y || 0, rot: s.rot, scale: s.scale ?? 1 };
+  }
+}
+
+function drawPreview() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = prevEl.clientWidth, h = prevEl.clientHeight;
+  if (prevEl.width !== Math.round(w * dpr) || prevEl.height !== Math.round(h * dpr)) {
+    prevEl.width = Math.round(w * dpr);
+    prevEl.height = Math.round(h * dpr);
+  }
+  const ctx = prevCtx;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#060a12";
+  ctx.fillRect(0, 0, w, h);
+
+  const lw = previewLaneWidth(w);
+  const judgeY = h * 0.84;
+
+  for (let i = 0; i < 4; i++) {
+    const st = draft[i];
+    const cx = w / 2 + (i - 1.5) * lw + st.x * lw;
+    ctx.save();
+    ctx.translate(cx, judgeY);
+    ctx.rotate((st.rot * Math.PI) / 180);
+    ctx.scale(st.scale, st.scale);
+
+    ctx.fillStyle = "rgba(255,255,255,0.03)";
+    ctx.fillRect(-lw / 2, -judgeY, lw, judgeY);
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.beginPath();
+    ctx.moveTo(-lw / 2, -judgeY); ctx.lineTo(-lw / 2, 0);
+    ctx.moveTo(lw / 2, -judgeY); ctx.lineTo(lw / 2, 0);
+    ctx.stroke();
+
+    // 判定點：玻璃球 + 赤道線（與遊戲內一致）
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, lw * 0.28, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-lw * 0.42, 0); ctx.lineTo(lw * 0.42, 0);
+    ctx.stroke();
+
+    // 示意音符：掉落中的光球（不使用 shadowBlur）
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath();
+    ctx.arc(0, -judgeY * 0.55, lw * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(120,150,180,0.5)";
+    ctx.font = "9px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(String(i + 1), w / 2 + (i - 1.5) * lw, h - 4);
+  }
+  ctx.textAlign = "left";
+}
+
+prevEl.addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  const rect = prevEl.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const w = rect.width;
+  const lw = previewLaneWidth(w);
+  let best = -1, bestD = 1e9;
+  for (let i = 0; i < 4; i++) {
+    const cx = w / 2 + (i - 1.5) * lw + draft[i].x * lw;
+    const d = Math.abs(x - cx);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  // 點在空白處 = 取消選取（之後方向鍵就回到「移動播放位置」）
+  if (best < 0 || bestD >= lw) {
+    selLane = -1;
+    renderLaneFields();
+    return;
+  }
+  selLane = best;
+  renderLaneFields();
+  prevDrag = {
+    lane: best,
+    startX: x,
+    startY: e.clientY - rect.top,
+    // 以「按下瞬間的值」為基準做增量，而不是每次 mousemove 累加。
+    // 累加會把每次移動的小誤差疊起來，放開時位置跟手差一截。
+    base: { ...draft[best] },
+    mode: e.shiftKey ? "rot" : (e.altKey ? "scale" : "x"),
+  };
+  draftDirty = true;
+  e.preventDefault();
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!prevDrag) return;
+  const rect = prevEl.getBoundingClientRect();
+  const lw = previewLaneWidth(rect.width);
+  const s = sens();
+  const d = draft[prevDrag.lane];
+  const dx = (e.clientX - rect.left) - prevDrag.startX;
+  const dy = (e.clientY - rect.top) - prevDrag.startY;
+
+  if (prevDrag.mode === "rot") {
+    d.rot = Math.round(clamp(prevDrag.base.rot + dy * 0.35 * s, -45, 45) * 10) / 10;
+  } else if (prevDrag.mode === "scale") {
+    d.scale = Math.round(clamp(prevDrag.base.scale * (1 + dy * 0.0035 * s), 0.4, 1.8) * 100) / 100;
+  } else {
+    d.x = Math.round(clamp(prevDrag.base.x + (dx / lw) * s, -2, 2) * 100) / 100;
+  }
+  renderLaneFields();
+  markDirty();
+});
+
+window.addEventListener("mouseup", () => { prevDrag = null; });
+
+// 選取軌道的數值微調。拖曳再怎麼調都還是「手感」，這裡給到 0.01 的精確度。
+function renderLaneFields() {
+  const box = $("laneFields");
+  if (selLane < 0) {
+    box.className = "hint";
+    box.innerHTML = "點一下預覽中的軌道，可以用數值微調。";
+    return;
+  }
+  box.className = "";
+  box.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "hint";
+  title.textContent = `軌道 ${selLane + 1} 微調（方向鍵 0.01，Shift 加速）`;
+  box.appendChild(title);
+
+  const row = document.createElement("div");
+  row.className = "row";
+  const fields = [
+    ["x", "X", 0.01, -2, 2],
+    ["rot", "旋轉", 0.5, -45, 45],
+    ["scale", "縮放", 0.01, 0.4, 1.8],
+  ];
+  for (const [key, label, step, lo, hi] of fields) {
+    const l = document.createElement("label");
+    l.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.step = String(step);
+    inp.value = draft[selLane][key];
+    inp.oninput = () => {
+      const v = parseFloat(inp.value);
+      if (Number.isFinite(v)) {
+        draft[selLane][key] = clamp(v, lo, hi);
+        draftDirty = true;
+        markDirty();
+      }
+    };
+    l.appendChild(inp);
+    row.appendChild(l);
+  }
+  box.appendChild(row);
+}
+
+function resetFormation() {
+  draft = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, rot: 0, scale: 1 }));
+  draftDirty = true;
+  markDirty();
+  renderLaneFields();
+  setStatus("已重置隊形 — 按「在目前拍新增關鍵影格」寫入");
+}
+
+$("btnResetForm").onclick = resetFormation;
+$("btnBigReset").onclick = resetFormation;
+
+$("btnClearLanes").onclick = () => {
+  if (!state.lanes.length) {
+    setStatus("目前沒有關鍵影格");
+    return;
+  }
+  if (!confirm(`確定清空全部 ${state.lanes.length} 個關鍵影格？`)) return;
+  state.lanes = [];
+  invalidateLaneCache();
+  markDirty();
+  refreshLists();
+  setStatus("已清空所有軌道關鍵影格");
+};
+
+// --- 靈敏度滑桿（兩個介面共用同一個值）---
+function setSens(v) {
+  v = clamp(parseInt(v, 10) || 35, 10, 100);
+  $("inSens").value = v;
+  $("inSensBig").value = v;
+  const label = (v / 100).toFixed(2) + "×";
+  $("sensVal").textContent = label;
+  $("sensValBig").textContent = label;
+}
+$("inSens").oninput = (e) => setSens(e.target.value);
+$("inSensBig").oninput = (e) => setSens(e.target.value);
+setSens(35);
+
+// --- 放大編輯：把同一塊 canvas 搬進全螢幕覆蓋層 ---
+// 不另開新視窗（會被瀏覽器攔截、還要同步兩份狀態），
+// 直接讓畫布放大到整個視窗，拖曳邏輯完全不用改。
+const previewHome = { parent: prevEl.parentNode, next: prevEl.nextSibling };
+
+function openBigEdit() {
+  $("bigEdit").classList.remove("hidden");
+  $("bigStage").appendChild(prevEl);
+  $("bigBeat").textContent = currentBeat().toFixed(2);
+  requestAnimationFrame(() => drawPreview());
+}
+
+function closeBigEdit() {
+  $("bigEdit").classList.add("hidden");
+  previewHome.parent.insertBefore(prevEl, previewHome.next);
+  requestAnimationFrame(() => drawPreview());
+}
+
+$("btnBigEdit").onclick = openBigEdit;
+$("btnBigApply").onclick = closeBigEdit;
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("bigEdit").classList.contains("hidden")) {
+    e.preventDefault();
+    closeBigEdit();
+  }
+});
+
+// ===========================================================================
+// 清單 UI
+// ===========================================================================
+function refreshLists() {
+  invalidateLaneCache();
+  waveCacheDirty = true;
+  refreshLaneList();
+  refreshWinList();
+  refreshBpmList();
+  $("statNotes").textContent = state.notes.length;
+}
+
+function refreshLaneList() {
+  const box = $("laneList");
+  box.innerHTML = "";
+  const beats = [...new Set(state.lanes.map((k) => round(k.beat, 4)))].sort((a, b) => a - b);
+  if (!beats.length) {
+    box.innerHTML = '<div class="hint">還沒有關鍵影格。調整下方預覽後按「新增」。</div>';
+    return;
+  }
+  for (const beat of beats) {
+    const row = document.createElement("div");
+    row.className = "item";
+    const xs = [0, 1, 2, 3].map((l) => {
+      const k = state.lanes.find((e) => e.lane === l && round(e.beat, 4) === beat);
+      return k ? (k.x >= 0 ? "+" : "") + k.x.toFixed(2) : "—";
+    });
+    row.innerHTML = `<span class="grow">拍 ${beat}　${xs.join(" / ")}</span>`;
+    const del = document.createElement("span");
+    del.className = "del";
+    del.textContent = "✕";
+    del.onclick = (ev) => {
+      ev.stopPropagation();
+      state.lanes = state.lanes.filter((k) => round(k.beat, 4) !== beat);
+      markDirty();
+      refreshLists();
+    };
+    row.appendChild(del);
+    row.onclick = () => {
+      seek(songTimeOfBeat(beat));
+      draftDirty = false;
+      syncDraftFromChart(true);
+    };
+    box.appendChild(row);
+  }
+}
+
+function refreshWinList() {
+  const box = $("winList");
+  box.innerHTML = "";
+  if (!state.windows.length) {
+    box.innerHTML = '<div class="hint">還沒有視窗事件。</div>';
+    return;
+  }
+  const sorted = state.windows.slice().sort((a, b) => a.beat - b.beat);
+  for (const ev of sorted) {
+    const row = document.createElement("div");
+    row.className = "item";
+    const extra = ev.type === "split" ? `×${ev.count || 2}`
+      : ev.type === "resize" ? `${ev.w}×${ev.h}`
+      : ev.type === "move" ? `(${ev.dx},${ev.dy})`
+      : ev.type === "shake" ? `${ev.strength}`
+      : ev.type === "recenter" ? "回到中央"
+      : ev.type === "borderless" ? (ev.on ? "無邊框" : "有邊框")
+      : "";
+    row.innerHTML = `<span class="grow">拍 ${round(ev.beat, 3)} · ${ev.type} ${extra}</span>`;
+    const del = document.createElement("span");
+    del.className = "del";
+    del.textContent = "✕";
+    del.onclick = (e2) => {
+      e2.stopPropagation();
+      state.windows.splice(state.windows.indexOf(ev), 1);
+      markDirty();
+      refreshLists();
+    };
+    row.appendChild(del);
+    row.onclick = () => seek(songTimeOfBeat(ev.beat));
+    box.appendChild(row);
+  }
+}
+
+function refreshBpmList() {
+  const box = $("bpmList");
+  box.innerHTML = "";
+  const segs = bpmSegments();
+  for (const s of segs) {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `<span class="grow">拍 ${round(s.beat, 3)} → ${s.bpm} BPM</span>`;
+    if (segs.length > 1) {
+      const del = document.createElement("span");
+      del.className = "del";
+      del.textContent = "✕";
+      del.onclick = (e) => {
+        e.stopPropagation();
+        state.timing.bpm_segments = state.timing.bpm_segments.filter((x) => x !== s);
+        markDirty();
+        refreshBpmList();
+      };
+      row.appendChild(del);
+    }
+    box.appendChild(row);
+  }
+}
+
+// ===========================================================================
+// BPM 分析
+// ===========================================================================
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = (-2 * Math.PI) / len;
+    const wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const ur = re[i + k], ui = im[i + k];
+        const vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci;
+        const vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
+        re[i + k] = ur + vr; im[i + k] = ui + vi;
+        re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
+        const ncr = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr; cr = ncr;
+      }
+    }
+  }
+}
+
+function onsetEnvelope(buffer) {
+  const sr0 = buffer.sampleRate;
+  const step = Math.max(1, Math.round(sr0 / 11025));
+  const sr = sr0 / step;
+  const ch0 = buffer.getChannelData(0);
+  const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+  const n = Math.floor(ch0.length / step);
+  const mono = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    const base = i * step;
+    for (let k = 0; k < step; k++) s += ch0[base + k] + (ch1 ? ch1[base + k] : 0);
+    mono[i] = s / (step * (ch1 ? 2 : 1));
+  }
+
+  const N = 1024, hop = 256;
+  const win = new Float32Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1));
+  const frames = Math.max(0, Math.floor((n - N) / hop));
+  const flux = new Float32Array(frames);
+  const prev = new Float32Array(N / 2);
+  const re = new Float32Array(N), im = new Float32Array(N);
+
+  for (let f = 0; f < frames; f++) {
+    const off = f * hop;
+    for (let i = 0; i < N; i++) { re[i] = mono[off + i] * win[i]; im[i] = 0; }
+    fft(re, im);
+    let sum = 0;
+    for (let k = 0; k < N / 2; k++) {
+      const mag = Math.hypot(re[k], im[k]);
+      const d = mag - prev[k];
+      if (d > 0) sum += d;
+      prev[k] = mag;
+    }
+    flux[f] = sum;
+  }
+
+  // 正規化 + 去均值
+  let mean = 0;
+  for (let i = 0; i < frames; i++) mean += flux[i];
+  mean /= Math.max(frames, 1);
+  let mx = 1e-9;
+  for (let i = 0; i < frames; i++) {
+    flux[i] = Math.max(0, flux[i] - mean);
+    if (flux[i] > mx) mx = flux[i];
+  }
+  for (let i = 0; i < frames; i++) flux[i] /= mx;
+
+  return { flux, fps: sr / hop };
+}
+
+function interp(arr, idx) {
+  const i = Math.floor(idx);
+  if (i < 0 || i >= arr.length - 1) return 0;
+  const f = idx - i;
+  return arr[i] * (1 - f) + arr[i + 1] * f;
+}
+
+function analyzeBpm() {
+  if (!audio.buffer) { setStatus("請先載入音樂檔"); return; }
+  setStatus("分析中…（第一次會慢一點）", 0);
+  setTimeout(() => {
+    try {
+      const { flux, fps } = onsetEnvelope(audio.buffer);
+      const dur = audio.buffer.duration;
+      const results = [];
+      // 對數常態先驗：偏好 90–180 BPM，避免把 120 誤判成 60（半速）
+      const prior = (bpm) => {
+        const x = Math.log2(bpm / 120);
+        let b = Math.exp(-0.5 * (x / 0.75) ** 2);
+        if (bpm < 80) b *= 0.75;
+        return b;
+      };
+
+      for (let bpm = 60; bpm <= 200; bpm += 0.25) {
+        const period = (60 / bpm) * fps;
+        if (period < 3) continue;
+        let bestScore = -1, bestPhase = 0;
+        for (let ph = 0; ph < period; ph += 1) {
+          let sum = 0, cnt = 0;
+          for (let k = 0; ; k++) {
+            const idx = ph + k * period;
+            if (idx >= flux.length - 2) break;
+            sum += interp(flux, idx);
+            cnt++;
+          }
+          if (cnt >= 8) {
+            const sc = (sum / cnt) * prior(bpm);
+            if (sc > bestScore) { bestScore = sc; bestPhase = ph; }
+          }
+        }
+        if (bestScore > 0) results.push({ bpm, score: bestScore, phase: bestPhase / fps });
+      }
+
+      results.sort((a, b) => b.score - a.score);
+      const picked = [];
+      for (const r of results) {
+        if (picked.every((p) => Math.abs(p.bpm - r.bpm) > 2)) picked.push(r);
+        if (picked.length >= 5) break;
+      }
+
+      const box = $("bpmResults");
+      box.innerHTML = "";
+      picked.forEach((r, i) => {
+        const row = document.createElement("div");
+        row.className = "item";
+        row.innerHTML = `<span class="grow">${r.bpm.toFixed(1)} BPM　offset ${r.phase.toFixed(3)}s</span>`;
+        if (i === 0) row.innerHTML += '<span class="tag">建議</span>';
+        row.onclick = () => {
+          state.timing.bpm_segments = [{ beat: 0, bpm: r.bpm }];
+          state.timing.offset = round(r.phase, 3);
+          $("inBpm").value = r.bpm.toFixed(2);
+          $("inOffset").value = state.timing.offset;
+          markDirty();
+          refreshLists();
+          setStatus(`已套用 ${r.bpm.toFixed(1)} BPM / offset ${r.phase.toFixed(3)}s`);
+        };
+        box.appendChild(row);
+      });
+      setStatus(`分析完成：${dur.toFixed(1)} 秒，找到 ${picked.length} 個候選`);
+      box.scrollIntoView({ block: "nearest" });
+    } catch (err) {
+      console.error(err);
+      setStatus("分析失敗：" + err.message);
+    }
+  }, 30);
+}
+
+// Tap tempo
+let taps = [];
+$("btnTap").onclick = () => {
+  const now = performance.now();
+  if (taps.length && now - taps[taps.length - 1] > 2500) taps = [];
+  taps.push(now);
+  if (taps.length >= 3) {
+    const iv = [];
+    for (let i = 1; i < taps.length; i++) iv.push(taps[i] - taps[i - 1]);
+    iv.sort((a, b) => a - b);
+    const med = iv[Math.floor(iv.length / 2)];
+    const bpm = Math.round((60000 / med) * 100) / 100;
+    $("inBpm").value = bpm;
+    state.timing.bpm_segments = [{ beat: 0, bpm }];
+    markDirty();
+    refreshLists();
+    setStatus(`Tap Tempo：${bpm} BPM（${taps.length} 下）`);
+  } else {
+    setStatus(`Tap… 再 ${3 - taps.length} 下`);
+  }
+};
+
+// ===========================================================================
+// 表單綁定
+// ===========================================================================
+$("inTitle").oninput = (e) => { state.meta.title = e.target.value; markDirty(); };
+$("inArtist").oninput = (e) => { state.meta.artist = e.target.value; markDirty(); };
+$("inDiff").oninput = (e) => { state.meta.difficulty = e.target.value; markDirty(); };
+$("inLevel").oninput = (e) => { state.meta.level = parseInt(e.target.value, 10) || 1; markDirty(); };
+$("inAudio").oninput = (e) => { state.meta.audio = e.target.value; markDirty(); };
+
+$("inBpm").onchange = (e) => {
+  const v = parseFloat(e.target.value);
+  if (!(v > 0)) return;
+  state.timing.bpm_segments = [{ beat: 0, bpm: v }];
+  markDirty();
+  refreshLists();
+};
+$("inOffset").onchange = (e) => {
+  state.timing.offset = parseFloat(e.target.value) || 0;
+  waveCacheDirty = true;
+  markDirty();
+};
+$("btnAddBpm").onclick = () => {
+  const bpm = parseFloat($("inBpm").value) || 120;
+  const beat = round(Math.max(0, snapBeat(currentBeat())), 4);
+  state.timing.bpm_segments.push({ beat, bpm });
+  state.timing.bpm_segments.sort((a, b) => a.beat - b.beat);
+  markDirty();
+  refreshLists();
+  setStatus(`已在拍 ${beat} 插入 ${bpm} BPM`);
+};
+$("inZoom").oninput = (e) => { pxPerBeat = parseFloat(e.target.value); };
+$("btnPlay").onclick = togglePlay;
+$("btnStop").onclick = stop;
+$("btnAnalyze").onclick = analyzeBpm;
+
+$("btnAddLane").onclick = () => {
+  const beat = round(Math.max(0, snapBeat(currentBeat())), 4);
+  state.lanes = state.lanes.filter((k) => round(k.beat, 4) !== beat);
+  for (let i = 0; i < 4; i++) {
+    state.lanes.push({
+      beat, lane: i,
+      x: round(draft[i].x, 3), y: round(draft[i].y || 0, 3),
+      rot: round(draft[i].rot, 2), scale: round(draft[i].scale ?? 1, 3),
+      ease: "smooth",
+    });
+  }
+  draftDirty = false;
+  markDirty();
+  refreshLists();
+  setStatus(`已新增隊形 @ 拍 ${beat}`);
+};
+
+// 視窗事件表單
+const WIN_FIELDS = {
+  move: [["dx", "水平位移（螢幕比例）", 0.02], ["dy", "垂直位移", 0], ["duration", "秒", 0.4]],
+  resize: [["w", "寬度倍率", 0.8], ["h", "高度倍率", 0.85], ["duration", "秒", 0.5]],
+  shake: [["strength", "強度 px", 10], ["duration", "秒", 0.4]],
+  split: [["count", "視窗數 2–3", 2]],
+  merge: [],
+  recenter: [["duration", "動畫秒數", 0.45]],
+  ontop: [["on", "1 = 置頂 / 0 = 取消", 1]],
+  borderless: [["on", "1 = 無邊框 / 0 = 有邊框", 1]],
+};
+
+function renderWinParams() {
+  const type = $("selWinType").value;
+  const box = $("winParams");
+  box.innerHTML = "";
+  for (const [key, label, def] of WIN_FIELDS[type]) {
+    const l = document.createElement("label");
+    l.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.step = "any";
+    inp.value = def;
+    inp.dataset.key = key;
+    l.appendChild(inp);
+    box.appendChild(l);
+  }
+}
+
+$("selWinType").onchange = renderWinParams;
+
+$("btnAddWin").onclick = () => {
+  const type = $("selWinType").value;
+  const ev = { beat: round(Math.max(0, snapBeat(currentBeat())), 4), type };
+  for (const inp of $("winParams").querySelectorAll("input")) {
+    ev[inp.dataset.key] = parseFloat(inp.value);
+  }
+  if (type === "split") ev.count = clamp(Math.round(ev.count || 2), 2, 3);
+  state.windows.push(ev);
+  markDirty();
+  refreshLists();
+  setStatus(`已新增視窗事件 ${type}`);
+};
+
+// ===========================================================================
+// 匯入 / 匯出
+// ===========================================================================
+function exportChart() {
+  const chart = {
+    format: "reverb-chart",
+    version: 1,
+    meta: {
+      title: state.meta.title || "Untitled",
+      artist: state.meta.artist || "",
+      difficulty: state.meta.difficulty || "Normal",
+      level: state.meta.level || 1,
+      audio: state.meta.audio || (audio.name ? "res://assets/audio/" + audio.name : ""),
+    },
+    timing: {
+      offset: round(state.timing.offset, 4),
+      bpm_segments: bpmSegments().map((s) => ({ beat: round(s.beat, 4), bpm: s.bpm })),
+    },
+    notes: state.notes
+      .slice()
+      .sort((a, b) => a.beat - b.beat || a.lane - b.lane)
+      .map((n) => ({ beat: round(n.beat, 4), lane: n.lane, len: round(n.len || 0, 4) })),
+    lanes: state.lanes
+      .slice()
+      .sort((a, b) => a.beat - b.beat || a.lane - b.lane)
+      .map((k) => ({
+        beat: round(k.beat, 4), lane: k.lane,
+        x: round(k.x, 3), y: round(k.y || 0, 3),
+        rot: round(k.rot, 2), scale: round(k.scale ?? 1, 3),
+        ease: k.ease || "smooth",
+      })),
+    windows: state.windows
+      .slice()
+      .sort((a, b) => a.beat - b.beat)
+      .map((w) => {
+        const o = { beat: round(w.beat, 4), type: w.type };
+        for (const k of Object.keys(w)) {
+          if (k !== "beat" && k !== "type") o[k] = w[k];
+        }
+        return o;
+      }),
+  };
+  const blob = new Blob([JSON.stringify(chart, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.meta.title || "chart").replace(/[\\/:*?"<>|]/g, "_") + ".json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  dirty = false;
+  setStatus("已匯出 " + a.download);
+}
+
+function loadChartData(data) {
+  if (!data || typeof data !== "object") throw new Error("格式錯誤");
+  state.meta = {
+    title: data.meta?.title || "Untitled",
+    artist: data.meta?.artist || "",
+    difficulty: data.meta?.difficulty || "Normal",
+    level: data.meta?.level || 1,
+    audio: data.meta?.audio || "",
+  };
+  state.timing = {
+    offset: data.timing?.offset || 0,
+    bpm_segments: (data.timing?.bpm_segments || [{ beat: 0, bpm: 120 }]).map((s) => ({
+      beat: s.beat || 0, bpm: s.bpm || 120,
+    })),
+  };
+  state.notes = (data.notes || []).map((n) => ({
+    beat: n.beat || 0, lane: n.lane || 0, len: n.len || 0,
+  }));
+  state.lanes = (data.lanes || []).map((k) => ({
+    beat: k.beat || 0, lane: k.lane || 0,
+    x: k.x || 0, y: k.y || 0, rot: k.rot || 0, scale: k.scale ?? 1,
+    ease: k.ease || "smooth",
+  }));
+  state.windows = (data.windows || []).map((w) => ({ ...w }));
+
+  $("inTitle").value = state.meta.title;
+  $("inArtist").value = state.meta.artist;
+  $("inDiff").value = state.meta.difficulty;
+  $("inLevel").value = state.meta.level;
+  $("inAudio").value = state.meta.audio;
+  $("inBpm").value = state.timing.bpm_segments[0]?.bpm || 120;
+  $("inOffset").value = state.timing.offset;
+
+  selected = null;
+  scrollBeat = 0;
+  draftDirty = false;
+  refreshLists();
+  syncDraftFromChart(true);
+}
+
+$("btnExport").onclick = exportChart;
+
+$("btnAudio").onclick = () => $("fileAudio").click();
+$("fileAudio").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setStatus("解碼音訊…", 0);
+  try {
+    const ctx = ensureCtx();
+    const buf = await file.arrayBuffer();
+    audio.buffer = await ctx.decodeAudioData(buf);
+    audio.name = file.name;
+    audio.pos = 0;
+    audio.playing = false;
+    scrollBeat = 0;
+    wavePeaks = computePeaks(audio.buffer);
+    waveCacheDirty = true;
+    if (!state.meta.audio) {
+      state.meta.audio = "res://assets/audio/" + file.name;
+      $("inAudio").value = state.meta.audio;
+    }
+    setStatus(`已載入 ${file.name}（${audio.buffer.duration.toFixed(1)} 秒）`);
+  } catch (err) {
+    console.error(err);
+    setStatus("音訊解碼失敗，請換 mp3 / ogg / wav");
+  }
+  e.target.value = "";
+};
+
+$("btnChart").onclick = () => $("fileChart").click();
+$("fileChart").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      loadChartData(JSON.parse(reader.result));
+      setStatus("已載入譜面：" + file.name);
+    } catch (err) {
+      setStatus("譜面解析失敗：" + err.message);
+    }
+  };
+  reader.readAsText(file, "utf-8");
+  e.target.value = "";
+};
+
+// ===========================================================================
+// 自動儲存
+// ===========================================================================
+const DRAFT_KEY = "reverb_chart_draft_v1";
+
+setInterval(() => {
+  if (!dirty) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      meta: state.meta, timing: state.timing, notes: state.notes,
+      lanes: state.lanes, windows: state.windows,
+    }));
+  } catch (e) {}
+}, 4000);
+
+$("btnRestore").onclick = () => {
+  const raw = localStorage.getItem(DRAFT_KEY);
+  if (!raw) { setStatus("沒有草稿"); return; }
+  if (!confirm("要用瀏覽器自動儲存的草稿覆蓋目前內容嗎？")) return;
+  try {
+    loadChartData(JSON.parse(raw));
+    setStatus("已還原草稿");
+  } catch (e) {
+    setStatus("草稿損壞");
+  }
+};
+
+window.addEventListener("beforeunload", (e) => {
+  if (!dirty) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
+
+// ===========================================================================
+// 鍵盤
+// ===========================================================================
+window.addEventListener("keydown", (e) => {
+  const tag = document.activeElement?.tagName;
+  const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+
+  if (e.code === "Space" && !typing) {
+    e.preventDefault();
+    togglePlay();
+    return;
+  }
+  if (e.key === "Delete" || e.key === "Backspace") {
+    if (typing) return;
+    if (selected) {
+      state.notes.splice(state.notes.indexOf(selected), 1);
+      selected = null;
+      markDirty();
+      refreshLists();
+      e.preventDefault();
+    }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    exportChart();
+    return;
+  }
+  if (!typing && ["1", "2", "3", "4"].includes(e.key)) {
+    const lane = parseInt(e.key, 10) - 1;
+    const beat = Math.max(0, snapBeat(currentBeat()));
+    const note = { beat, lane, len: 0 };
+    state.notes.push(note);
+    selected = note;
+    markDirty();
+    refreshLists();
+    e.preventDefault();
+    return;
+  }
+  // 有選取軌道時，方向鍵用來微調隊形；沒選取時才移動播放位置。
+  if (!typing && selLane >= 0 && e.key.startsWith("Arrow")) {
+    e.preventDefault();
+    const d = draft[selLane];
+    const fast = e.shiftKey;
+    const sx = fast ? 0.05 : 0.01;
+    const sr = fast ? 5 : 1;
+    if (e.key === "ArrowLeft") d.x = Math.round(clamp(d.x - sx, -2, 2) * 100) / 100;
+    if (e.key === "ArrowRight") d.x = Math.round(clamp(d.x + sx, -2, 2) * 100) / 100;
+    if (e.key === "ArrowUp") d.rot = Math.round(clamp(d.rot + sr, -45, 45) * 10) / 10;
+    if (e.key === "ArrowDown") d.rot = Math.round(clamp(d.rot - sr, -45, 45) * 10) / 10;
+    draftDirty = true;
+    markDirty();
+    renderLaneFields();
+    return;
+  }
+  if (!typing && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+    e.preventDefault();
+    const delta = (e.key === "ArrowUp" ? 1 : -1) * (60 / (bpmSegments()[0].bpm)) * 0.5;
+    seek(songTime() + delta);
+  }
+});
+
+// ===========================================================================
+// 主迴圈
+// ===========================================================================
+function loop() {
+  syncDraftFromChart();
+  drawRoll();
+  drawPreview();
+  drawWave();
+
+  const t = songTime();
+  const b = currentBeat();
+  $("statTime").textContent = t.toFixed(2) + "s";
+  $("statBeat").textContent = b.toFixed(2);
+  $("statBpm").textContent = bpmSegments()[0].bpm;
+  $("posLabel").textContent = `${t.toFixed(2)} / ${audioDuration().toFixed(2)} s`;
+  $("previewHint").textContent = draftDirty
+    ? "未儲存的隊形 — 按「在目前拍新增關鍵影格」套用"
+    : "拖曳：左右移動　Shift：旋轉　Alt：縮放";
+  if (!$("bigEdit").classList.contains("hidden")) {
+    $("bigBeat").textContent = b.toFixed(2);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function init() {
+  resizeRoll();
+  renderWinParams();
+  refreshLists();
+  drawPreview();
+  requestAnimationFrame(loop);
+  setStatus("先載入音樂，或用「載入譜面」開啟譜面 JSON");
+}
+
+init();
+</script>
+</body>
+</html>

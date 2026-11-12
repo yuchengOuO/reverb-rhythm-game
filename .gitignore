@@ -1,0 +1,11 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# 音檔不進版控（版權 + 檔案大小），clone 後請自行把音檔放進 assets/audio/
+assets/audio/*
+!assets/audio/.gitkeep
+
+# Windows 系統檔
+Thumbs.db
+desktop.ini

@@ -1,0 +1,706 @@
+{
+ "format": "reverb-chart",
+ "version": 1,
+ "meta": {
+  "title": "Message",
+  "artist": "",
+  "difficulty": "Hard",
+  "level": 12,
+  "audio": "res://assets/audio/くるぶっこちゃん -  Message.mp3"
+ },
+ "timing": {
+  "offset": 0.1,
+  "bpm_segments": [
+   {
+    "beat": 0,
+    "bpm": 220
+   }
+  ]
+ },
+ "notes": [
+  {
+   "beat": 20,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 21.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 23,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 24.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 26,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 27.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 29,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 30.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 36,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 36.6667,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 37.3333,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 38.6667,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 40,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 42,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 42.6667,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 43.3333,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 54,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 54.6667,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 55.3333,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 56.6667,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 58,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 60,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 60.6667,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 61.3333,
+   "lane": 0,
+   "len": 0.6667
+  },
+  {
+   "beat": 68,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 68.5,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 69,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 69.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 71,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 72,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 72.5,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 73,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 73.5,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 74,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 75,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 76,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 76.5,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 77,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 77.5,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 78,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 79,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 79.5,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 80,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 80.5,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 81,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 82,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 83,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 84,
+   "lane": 1,
+   "len": 1
+  },
+  {
+   "beat": 84,
+   "lane": 2,
+   "len": 1
+  },
+  {
+   "beat": 86,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 86,
+   "lane": 3,
+   "len": 1
+  },
+  {
+   "beat": 89,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 89,
+   "lane": 3,
+   "len": 1
+  },
+  {
+   "beat": 90.6667,
+   "lane": 1,
+   "len": 1
+  },
+  {
+   "beat": 90.6667,
+   "lane": 2,
+   "len": 1
+  },
+  {
+   "beat": 92.6667,
+   "lane": 1,
+   "len": 1
+  },
+  {
+   "beat": 92.6667,
+   "lane": 2,
+   "len": 1
+  },
+  {
+   "beat": 93.6667,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 93.6667,
+   "lane": 3,
+   "len": 1
+  },
+  {
+   "beat": 94.6667,
+   "lane": 1,
+   "len": 1
+  },
+  {
+   "beat": 94.6667,
+   "lane": 2,
+   "len": 1
+  },
+  {
+   "beat": 96.6667,
+   "lane": 2,
+   "len": 1
+  },
+  {
+   "beat": 96.6667,
+   "lane": 3,
+   "len": 1
+  },
+  {
+   "beat": 98,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 98,
+   "lane": 1,
+   "len": 1
+  },
+  {
+   "beat": 99,
+   "lane": 2,
+   "len": 1
+  },
+  {
+   "beat": 99,
+   "lane": 3,
+   "len": 1
+  },
+  {
+   "beat": 100,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 100,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 102,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 102,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 106.75,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 106.75,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 107,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 107.25,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 107.5,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 107.75,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 108,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 108,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 110,
+   "lane": 2,
+   "len": 2
+  },
+  {
+   "beat": 110,
+   "lane": 3,
+   "len": 2
+  },
+  {
+   "beat": 112,
+   "lane": 0,
+   "len": 2
+  },
+  {
+   "beat": 112,
+   "lane": 1,
+   "len": 2
+  },
+  {
+   "beat": 114,
+   "lane": 2,
+   "len": 2
+  },
+  {
+   "beat": 114,
+   "lane": 3,
+   "len": 2
+  },
+  {
+   "beat": 116,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 116.25,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 116.5,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 116.75,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 117,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 117.25,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 117.5,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 117.75,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 120,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 120.1667,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 120.3333,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 120.5,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 120.8333,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 121,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 121.1667,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 121.3333,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 124,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 124.25,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 124.5,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 124.75,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 125,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 125.25,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 125.5,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 125.75,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 126,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 126.25,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 126.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 126.75,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 127,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 127.25,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 127.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 127.75,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 128,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 128,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 136,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 139,
+   "lane": 1,
+   "len": 0
+  },
+  {
+   "beat": 144,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 147,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 149,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 150,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 151,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 152,
+   "lane": 3,
+   "len": 1
+  },
+  {
+   "beat": 154,
+   "lane": 2,
+   "len": 0
+  },
+  {
+   "beat": 156,
+   "lane": 3,
+   "len": 0
+  }
+ ],
+ "lanes": [
+  {
+   "beat": 0,
+   "lane": 0,
+   "x": -0.8,
+   "y": 0,
+   "rot": 0,
+   "scale": 1,
+   "ease": "smooth"
+  },
+  {
+   "beat": 0,
+   "lane": 1,
+   "x": -0.3,
+   "y": 0,
+   "rot": 0,
+   "scale": 1,
+   "ease": "smooth"
+  },
+  {
+   "beat": 0,
+   "lane": 2,
+   "x": 0.3,
+   "y": 0,
+   "rot": 0,
+   "scale": 1,
+   "ease": "smooth"
+  },
+  {
+   "beat": 0,
+   "lane": 3,
+   "x": 0.8,
+   "y": 0,
+   "rot": 0,
+   "scale": 1,
+   "ease": "smooth"
+  }
+ ],
+ "windows": []
+}
