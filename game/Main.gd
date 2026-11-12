@@ -82,6 +82,10 @@ func _exit_tree() -> void:
 	if conductor != null:
 		conductor.stop()
 		conductor.player.stream = null
+	# 註：引擎仍可能在關機時印出「1 resources still in use at exit」（AudioStreamMP3）。
+	# 那是「音訊播放中直接結束程式」的已知引擎問題（godotengine/godot#76745），
+	# 遊戲端已做到能做的清理，剩下的引用在引擎的音訊執行緒裡，不需再追。
+	# 只出現在命令列直接執行時，不影響遊玩與判定。
 
 
 # --------------------------------------------------------------------------

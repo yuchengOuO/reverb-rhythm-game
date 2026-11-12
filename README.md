@@ -382,9 +382,9 @@ godot --path . -- --autoplay --note=orb
 搭配 `--headless` 就能當成回歸測試：只要有漏判，`MISS` 就不是 0。
 
 ```bash
-# 完整跑一首（2600 幀 ≈ 43 秒）
-godot --headless --path . --fixed-fps 60 --quit-after 2600 -- --autoplay --autohit
-# 輸出範例：[AUTOTEST] grade=SS score=126214 acc=1.0000 max_combo=260 P=260 G=0 D=0 M=0
+# 完整跑一首（3000 幀 ≈ 50 秒，含 2.6 秒預捲）
+godot --headless --path . --fixed-fps 60 --quit-after 3000 -- --autoplay --autohit
+# 輸出範例（預設譜面 Message，129 顆）：[AUTOTEST] grade=SS score=53339 acc=1.0000 max_combo=129 P=129 G=0 D=0 M=0
 ```
 
 音符數量取決於載入的譜面（`_default_chart()` 會拿 `assets/charts/` 排序後的第一張），
@@ -393,9 +393,14 @@ godot --headless --path . --fixed-fps 60 --quit-after 2600 -- --autoplay --autoh
 
 ```bash
 for fps in 144 60 30 20 15; do
-  godot --headless --path . --fixed-fps $fps --quit-after $((fps*42)) -- --autoplay --autohit
+  godot --headless --path . --fixed-fps $fps --quit-after $((fps*50)) -- --autoplay --autohit
 done
 ```
+
+> 結束時如果看到 `ERROR: 1 resources still in use at exit`（AudioStreamMP3）不用緊張：
+> 那是 Godot 引擎在「音訊還在播放時被直接關掉」的已知問題
+> （[godotengine/godot#76745](https://github.com/godotengine/godot/issues/76745)），
+> 只出現在命令列直接執行時，不影響遊玩與判定。
 
 ### 離屏錄影（不開視窗也能看畫面）
 
