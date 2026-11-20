@@ -93,6 +93,21 @@ func stop() -> void:
 	started = false
 
 
+## 音樂淡出後停止。結算畫面用：譜面先結束時音檔可能還有一大段，
+## 直接 pause 會「啪」一聲斷掉，淡出聽起來自然得多。
+func fade_out(duration := 0.9) -> void:
+	if player == null or not player.playing:
+		set_paused(true)
+		return
+	var tw := create_tween()
+	tw.tween_property(player, "volume_db", -60.0, maxf(duration, 0.05))
+	tw.tween_callback(func():
+		player.stop()
+		player.volume_db = 0.0
+		started = false
+	)
+
+
 func set_paused(value: bool) -> void:
 	paused = value
 	if player.playing:

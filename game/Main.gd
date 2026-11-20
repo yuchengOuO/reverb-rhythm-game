@@ -15,6 +15,7 @@ var stage_vp: SubViewport
 var stage_root: Node2D
 var surface: ColorRect
 var director: WindowDirector
+var effects: EffectDirector
 var playfield: Playfield
 var conductor: Conductor
 
@@ -26,17 +27,34 @@ var pause_root: Control
 var result_root: Control
 var song_box: VBoxContainer
 var toast_label: Label
+var menu_chart_label: Label
 
 var state := "menu"
 var current_chart_path := ""
+## 目前譜面的背景偏好 key（Settings 用它記住「這個譜面」選了哪張圖）
+var _chart_key := ""
+## 目前載入的背景貼圖（純黑時為 null）
+var _bg_tex: Texture2D = null
+var _bg_black_btn: Button
+var _bg_auto_btn: Button
+var _bg_custom_btn: Button
+var _bg_label: Label
+var _bg_preview: TextureRect
+var _bg_dialog: FileDialog
+## 譜面禁止全螢幕時，我們會暫時退出全螢幕；離開遊戲後要還原玩家的設定
+var _fullscreen_forced := false
 
 var _font: Font
 var _theme: Theme
 var _rebind_lane := -1
 var _rebind_btn: Button
-var _result_grade: Label
+## 開發參數（--note / --scale）有沒有蓋掉設定值。
+## 有的話就不要把設定寫回檔案，否則測試用的數值會被存成玩家的偏好。
+var _dev_override := false
 var _result_score: Label
 var _result_detail: Label
+## 結算畫面的評價階梯：[{letter, panel, letter_label, note, need}]
+var _grade_rows: Array = []
 
 
 func _ready() -> void:
@@ -59,6 +77,13 @@ func _ready() -> void:
 			var v := a.substr(7)
 			if v in ["bar", "orb"]:
 				Settings.note_style = v
+				_dev_override = true
+			break
+	# 開發用：-- --scale=1.4 臨時指定音符大小（不寫入設定檔）
+	for a in args:
+		if a.begins_with("--scale="):
+			Settings.note_scale = clampf(float(a.substr(8)), 0.6, 1.8)
+			_dev_override = true
 			break
 	if "--autoplay" in args:
 		_start_game(_default_chart())
@@ -115,6 +140,26 @@ func _build_stage() -> void:
 	add_child(director)
 	director.setup(surface, stage_vp)
 
+	# 特效：寫進 director 的合成材質，所以分割視窗時每一塊都有
+	effects = EffectDirector.new()
+	add_child(effects)
+	effects.setup(director)
+
+
+## 這個譜面的版面尺寸（UI 的座標系）。
+##
+## 以「開場時的視窗大小」為準：譜面若指定了初始視窗（settings.window），
+## 就用那個大小排版，否則沿用玩家目前的視窗。
+## 之後的 resize 事件不會再改它 —— 視窗變小是裁切、變大是露出更多背景，
+## 音符、判定點、HUD 一律保持原本的比例。
+func _layout_size(ch: Chart) -> Vector2:
+	if ch != null and ch.window_w > 0 and ch.window_h > 0:
+		return Vector2(
+			clampi(ch.window_w, 320, 7680),
+			clampi(ch.window_h, 240, 4320)
+		)
+	return Vector2(stage_vp.size)
+
 
 func _on_viewport_resized() -> void:
 	if director != null and director.stage_locked:
@@ -126,7 +171,11 @@ func _on_viewport_resized() -> void:
 	)
 	stage_vp.size = sz
 	if playfield != null:
-		playfield.stage_size = Vector2(sz)
+		# 只更新「繪圖區」大小，不動版面尺寸：
+		# 視窗縮放只是裁掉 / 露出更多外圍，音符與判定點的比例不變。
+		playfield.view_size = Vector2(sz)
+	if director != null:
+		director.refresh_texel()
 
 
 # --------------------------------------------------------------------------
@@ -141,6 +190,9 @@ func _process(_delta: float) -> void:
 
 
 func _start_game(path: String) -> void:
+	if path.is_empty():
+		_toast("找不到譜面。請把 .json 放進 assets/charts/")
+		return
 	var chart := Chart.from_file(path)
 	if chart == null:
 		_toast("譜面讀取失敗：" + path)
@@ -152,6 +204,17 @@ func _start_game(path: String) -> void:
 
 	_clear_game()
 	current_chart_path = path
+	_chart_key = Settings.chart_key(path)
+	# 記住這次玩的譜面，「開始遊玩」下次就直接進這首
+	# （用開發參數跑測試時不寫檔，免得把測試值存成玩家偏好）
+	if Settings.last_chart != path and not _dev_override:
+		Settings.last_chart = path
+		Settings.save_settings()
+
+	# 譜面可以禁止全螢幕（settings.fullscreen = "block"）
+	if chart.fullscreen == "block" and DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		_fullscreen_forced = true
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 
 	conductor = Conductor.new()
 	add_child(conductor)
@@ -159,14 +222,19 @@ func _start_game(path: String) -> void:
 
 	playfield = Playfield.new()
 	playfield.conductor = conductor
-	playfield.stage_size = Vector2(stage_vp.size)
+	# 版面尺寸在開場就固定，之後的 resize 事件只裁切 / 露出外圍，不改變 UI 比例
+	playfield.stage_size = _layout_size(chart)
+	playfield.view_size = Vector2(stage_vp.size)
 	stage_root.add_child(playfield)
 	playfield.set_chart(chart)
 	playfield.auto_play = "--autohit" in OS.get_cmdline_user_args()
 	playfield.finished.connect(_on_song_finished)
+	_apply_background()
 
 	director.bind_chart(chart)
 	director.start(conductor)
+	effects.bind_chart(chart)
+	effects.start(conductor)
 	conductor.start()
 
 	_set_state("game")
@@ -176,11 +244,18 @@ func _clear_game() -> void:
 	if playfield != null:
 		playfield.queue_free()
 		playfield = null
+	_bg_tex = null
+	_chart_key = ""
 	if conductor != null:
 		conductor.queue_free()
 		conductor = null
 	if director != null:
 		director.reset()
+	if effects != null:
+		effects.reset()
+	if _fullscreen_forced:
+		_fullscreen_forced = false
+		_apply_fullscreen()
 
 
 func _set_pause(paused_now: bool) -> void:
@@ -189,20 +264,142 @@ func _set_pause(paused_now: bool) -> void:
 			return
 		conductor.set_paused(true)
 		director.reset()
+		effects.reset()
 		_set_state("paused")
 	else:
 		if state != "paused":
 			return
 		conductor.set_paused(false)
 		director.start(conductor)
+		effects.start(conductor)
 		_set_state("game")
+
+
+# --------------------------------------------------------------------------
+# 背景（譜面預設 / 玩家自訂）
+# --------------------------------------------------------------------------
+
+## 依「玩家對這個譜面的選擇」重新載入背景。
+##   auto   → 譜面 settings.background（沒設定就是純黑）
+##   black  → 純黑
+##   custom → 玩家自己選的圖（會複製到 user://backgrounds/）
+func _apply_background() -> void:
+	if playfield == null or playfield.chart == null:
+		return
+	var chart: Chart = playfield.chart
+	var mode := Settings.background_mode(_chart_key)
+	var path := ""
+	if mode == "custom":
+		path = Settings.background_path(_chart_key)
+		if path.is_empty():
+			mode = "auto"
+			path = chart.background
+	elif mode == "auto":
+		path = chart.background
+
+	var tex: Texture2D = null
+	if not path.is_empty():
+		tex = ImageLoader.load_texture(path)
+	# 自訂圖失效（換電腦、檔案被刪）→ 退回譜面預設，不要突然變全黑
+	var fallback := false
+	if tex == null and mode == "custom" and not chart.background.is_empty():
+		tex = ImageLoader.load_texture(chart.background)
+		fallback = tex != null
+	_bg_tex = tex
+	playfield.set_background(tex, chart.background_dim)
+	_refresh_bg_ui(mode, fallback)
+
+
+## 更新暫停選單的按鈕狀態；譜面沒有預設背景時隱藏「譜面預設」。
+## mode 是目前「設定上」的模式；fallback = 自訂圖讀不到、暫時顯示譜面預設。
+func _refresh_bg_ui(mode: String, fallback := false) -> void:
+	if _bg_black_btn == null:
+		return
+	var chart: Chart = playfield.chart if playfield != null else null
+	var has_chart_bg := chart != null and not chart.background.is_empty()
+
+	_bg_auto_btn.visible = has_chart_bg
+	_bg_auto_btn.disabled = not has_chart_bg
+	# 譜面沒有背景時，auto 的實際結果就是純黑 → 把「純黑」標成選中
+	_style_note_btn(_bg_black_btn, mode == "black" or (mode == "auto" and not has_chart_bg))
+	_style_note_btn(_bg_auto_btn, mode == "auto" and has_chart_bg)
+	_style_note_btn(_bg_custom_btn, mode == "custom")
+	if _bg_preview != null:
+		_bg_preview.texture = _bg_tex
+		_bg_preview.visible = _bg_tex != null
+	# 已經有自訂圖時，按鈕代表「切回去／換一張」，不是每次都開檔案對話框
+	var has_custom := not Settings.background_path(_chart_key).is_empty()
+	if mode == "custom":
+		_bg_custom_btn.text = "更換照片…"
+		_bg_custom_btn.tooltip_text = "重新選一張圖"
+	elif has_custom:
+		_bg_custom_btn.text = "自訂照片"
+		_bg_custom_btn.tooltip_text = "切回上次選的照片（再按一次可換圖）"
+	else:
+		_bg_custom_btn.text = "自訂照片…"
+		_bg_custom_btn.tooltip_text = "選一張自己的圖（依譜面記住）"
+
+	if _bg_label != null:
+		if mode == "custom" and fallback:
+			_bg_label.text = "自訂圖讀取失敗，目前顯示譜面預設"
+		elif mode == "custom" and _bg_tex == null:
+			_bg_label.text = "自訂圖讀取失敗，目前顯示純黑"
+		elif _bg_tex != null:
+			_bg_label.text = "背景：%s（這首譜面會記住）" % (
+				"自訂照片" if mode == "custom" else "譜面預設"
+			)
+		else:
+			_bg_label.text = "背景：純黑（這首譜面會記住）"
+
+
+func _set_bg_mode(mode: String) -> void:
+	if _chart_key.is_empty():
+		return
+	# 保留玩家原本選的自訂圖路徑，只改模式；切回「自訂」時不用重選一次
+	Settings.set_background(_chart_key, mode, Settings.background_path(_chart_key))
+	_apply_background()
+
+
+func _pick_custom_bg() -> void:
+	if playfield == null:
+		return
+	# 已經選過自訂圖、只是暫時切到純黑／譜面預設時，直接切回那張圖，
+	# 不用再開一次檔案對話框。想換圖的話（目前就在「自訂」模式）才開對話框。
+	var existing := Settings.background_path(_chart_key)
+	if Settings.background_mode(_chart_key) != "custom" \
+			and not existing.is_empty() and FileAccess.file_exists(existing):
+		_set_bg_mode("custom")
+		return
+	if _bg_dialog == null:
+		_bg_dialog = FileDialog.new()
+		_bg_dialog.title = "選擇背景圖片"
+		_bg_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_bg_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		_bg_dialog.use_native_dialog = true
+		_bg_dialog.add_filter("*.png,*.jpg,*.jpeg,*.webp,*.bmp", "圖片")
+		_bg_dialog.file_selected.connect(_on_bg_file_selected)
+		add_child(_bg_dialog)
+	_bg_dialog.popup_centered_ratio(0.6)
+
+
+func _on_bg_file_selected(src_path: String) -> void:
+	var dest := ImageLoader.import_custom(src_path, _chart_key)
+	if dest.is_empty():
+		_toast("讀不到這張圖片，請改用 png / jpg / webp")
+		return
+	Settings.set_background(_chart_key, "custom", dest)
+	_apply_background()
+	_toast("背景已更換（這首譜面會記住）")
 
 
 func _on_song_finished() -> void:
 	if state != "game":
 		return
-	conductor.set_paused(true)
+	# 音樂淡出（譜面先結束時，音檔可能還有一大段）
+	if conductor != null:
+		conductor.fade_out(0.9)
 	director.reset()
+	effects.reset()
 	_fill_result()
 	_set_state("result")
 
@@ -234,6 +431,8 @@ func _set_state(new_state: String) -> void:
 
 	if new_state == "select":
 		_refresh_song_list()
+	elif new_state == "menu":
+		_refresh_menu_hint()
 
 
 func _apply_fullscreen() -> void:
@@ -310,6 +509,14 @@ func _build_menu() -> Control:
 	box.add_child(gap)
 
 	box.add_child(_button("開 始 遊 玩", func(): _start_game(_default_chart())))
+
+	# 「開始遊玩」會直接進上次那首，所以在按鈕下面寫清楚是哪一首。
+	menu_chart_label = Label.new()
+	menu_chart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_chart_label.add_theme_font_size_override("font_size", 12)
+	menu_chart_label.add_theme_color_override("font_color", Color("7a7a7a"))
+	box.add_child(menu_chart_label)
+
 	box.add_child(_button("選 擇 譜 面", func(): _set_state("select")))
 	box.add_child(_button("設 定", func(): _set_state("settings")))
 	box.add_child(_button("離 開", func(): get_tree().quit()))
@@ -373,7 +580,7 @@ func _refresh_song_list() -> void:
 
 
 func _build_settings() -> Control:
-	var p := _panel("設 定", Vector2(780, 620))
+	var p := _panel("設 定", Vector2(780, 620), true)
 	var box: VBoxContainer = p.box
 
 	var key_title := Label.new()
@@ -480,22 +687,113 @@ func _build_settings() -> Control:
 		style_row.add_child(b)
 
 	var style_hint := Label.new()
-	style_hint.text = "預設長條；圓球是原本的樣式。"
+	style_hint.text = "預設長條；譜面也可以自己鎖定樣式。"
 	style_hint.add_theme_font_size_override("font_size", 12)
 	style_hint.add_theme_color_override("font_color", Color("8c8c8c"))
 	style_row.add_child(style_hint)
 	box.add_child(style_row)
 
-	box.add_child(_gap(6))
-
-	var wfx := CheckBox.new()
-	wfx.text = "允許譜面控制視窗（移動 / 縮放 / 分割）"
-	wfx.button_pressed = Settings.window_fx
-	wfx.toggled.connect(func(on: bool):
-		Settings.window_fx = on
+	# 音符大小
+	var size_row := HBoxContainer.new()
+	var size_lab := Label.new()
+	size_lab.text = "音符大小"
+	size_lab.custom_minimum_size.x = 110
+	size_row.add_child(size_lab)
+	var size_slider := HSlider.new()
+	size_slider.min_value = 0.6
+	size_slider.max_value = 1.8
+	size_slider.step = 0.05
+	size_slider.value = Settings.note_scale
+	size_slider.custom_minimum_size = Vector2(380, 28)
+	size_row.add_child(size_slider)
+	var size_val := Label.new()
+	size_val.text = "%.2fx" % Settings.note_scale
+	size_val.custom_minimum_size.x = 90
+	size_row.add_child(size_val)
+	size_slider.value_changed.connect(func(v: float):
+		Settings.note_scale = v
+		size_val.text = "%.2fx" % v
 		Settings.save_settings()
 	)
-	box.add_child(wfx)
+	box.add_child(size_row)
+
+	# 打擊特效（低效能裝置可以整個關掉）
+	var fx_head := Label.new()
+	fx_head.text = "打擊特效"
+	fx_head.add_theme_color_override("font_color", Color("9e9e9e"))
+	box.add_child(fx_head)
+
+	var fx_on := CheckBox.new()
+	fx_on.text = "顯示擊中粒子（關閉可提升低效能裝置的幀率）"
+	fx_on.button_pressed = Settings.hit_fx_enabled
+	box.add_child(fx_on)
+
+	var fxc_row := HBoxContainer.new()
+	var fxc_lab := Label.new()
+	fxc_lab.text = "粒子數量"
+	fxc_lab.custom_minimum_size.x = 110
+	fxc_row.add_child(fxc_lab)
+	var fxc_slider := HSlider.new()
+	fxc_slider.min_value = 0.25
+	fxc_slider.max_value = 2.0
+	fxc_slider.step = 0.05
+	fxc_slider.value = Settings.hit_fx_count
+	fxc_slider.custom_minimum_size = Vector2(380, 28)
+	fxc_row.add_child(fxc_slider)
+	var fxc_val := Label.new()
+	fxc_val.text = "%.2fx" % Settings.hit_fx_count
+	fxc_val.custom_minimum_size.x = 90
+	fxc_row.add_child(fxc_val)
+	box.add_child(fxc_row)
+
+	var fxs_row := HBoxContainer.new()
+	var fxs_lab := Label.new()
+	fxs_lab.text = "粒子大小"
+	fxs_lab.custom_minimum_size.x = 110
+	fxs_row.add_child(fxs_lab)
+	var fxs_slider := HSlider.new()
+	fxs_slider.min_value = 0.5
+	fxs_slider.max_value = 2.0
+	fxs_slider.step = 0.05
+	fxs_slider.value = Settings.hit_fx_size
+	fxs_slider.custom_minimum_size = Vector2(380, 28)
+	fxs_row.add_child(fxs_slider)
+	var fxs_val := Label.new()
+	fxs_val.text = "%.2fx" % Settings.hit_fx_size
+	fxs_val.custom_minimum_size.x = 90
+	fxs_row.add_child(fxs_val)
+	box.add_child(fxs_row)
+
+	var apply_fx_ui := func(on: bool):
+		fxc_slider.editable = on
+		fxs_slider.editable = on
+		fxc_row.modulate.a = 1.0 if on else 0.45
+		fxs_row.modulate.a = 1.0 if on else 0.45
+	apply_fx_ui.call(Settings.hit_fx_enabled)
+	fx_on.toggled.connect(func(on: bool):
+		Settings.hit_fx_enabled = on
+		Settings.save_settings()
+		apply_fx_ui.call(on)
+	)
+	fxc_slider.value_changed.connect(func(v: float):
+		Settings.hit_fx_count = v
+		fxc_val.text = "%.2fx" % v
+		Settings.save_settings()
+	)
+	fxs_slider.value_changed.connect(func(v: float):
+		Settings.hit_fx_size = v
+		fxs_val.text = "%.2fx" % v
+		Settings.save_settings()
+	)
+
+	box.add_child(_gap(6))
+
+	var mech := Label.new()
+	mech.text = "譜面會控制視窗（移動 / 縮放 / 分割）—— 這是遊戲機制，固定開啟。"
+	mech.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mech.add_theme_font_size_override("font_size", 12)
+	mech.add_theme_color_override("font_color", Color("9e9e9e"))
+	box.add_child(mech)
 
 	var fs := CheckBox.new()
 	fs.text = "全螢幕"
@@ -534,7 +832,7 @@ func _build_pause() -> Control:
 	root.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(420, 320)
+	panel.custom_minimum_size = Vector2(460, 470)
 	panel.add_theme_stylebox_override("panel", _sb(Color("0a0a0a"), Color("2b2b2b"), 1))
 	center.add_child(panel)
 
@@ -559,6 +857,42 @@ func _build_pause() -> Control:
 	box.add_child(_button("重 新 開 始", func(): _restart()))
 	box.add_child(_button("回 主 選 單", func(): _back_to_menu()))
 
+	box.add_child(_gap(6))
+
+	# --- 背景（依譜面記住）---
+	var bg_cap := Label.new()
+	bg_cap.text = "背 景"
+	bg_cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bg_cap.add_theme_font_size_override("font_size", 11)
+	bg_cap.add_theme_color_override("font_color", Color("6a6a6a"))
+	box.add_child(bg_cap)
+
+	var bg_row := HBoxContainer.new()
+	bg_row.add_theme_constant_override("separation", 8)
+	bg_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_bg_black_btn = _small_button("純 黑", func(): _set_bg_mode("black"))
+	_bg_auto_btn = _small_button("譜面預設", func(): _set_bg_mode("auto"))
+	_bg_custom_btn = _small_button("自訂照片…", _pick_custom_bg, 150.0)
+	bg_row.add_child(_bg_black_btn)
+	bg_row.add_child(_bg_auto_btn)
+	bg_row.add_child(_bg_custom_btn)
+	box.add_child(bg_row)
+
+	# 小預覽圖：暫停畫面本身會壓暗整個遊戲，光看按鈕不知道換了什麼。
+	_bg_preview = TextureRect.new()
+	_bg_preview.custom_minimum_size = Vector2(0, 72)
+	_bg_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_bg_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_bg_preview.visible = false
+	box.add_child(_bg_preview)
+
+	_bg_label = Label.new()
+	_bg_label.text = "背景：純黑"
+	_bg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_bg_label.add_theme_font_size_override("font_size", 11)
+	_bg_label.add_theme_color_override("font_color", Color("6a6a6a"))
+	box.add_child(_bg_label)
+
 	return root
 
 
@@ -571,32 +905,103 @@ func _build_result() -> Control:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(center)
 
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	center.add_child(box)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 56)
+	center.add_child(row)
 
-	_result_grade = Label.new()
-	_result_grade.text = "S"
-	_result_grade.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_grade.add_theme_font_size_override("font_size", 96)
-	_result_grade.add_theme_color_override("font_color", Color("ffffff"))
-	box.add_child(_result_grade)
+	# --- 左：分數與判定細項 ---
+	var left := VBoxContainer.new()
+	left.add_theme_constant_override("separation", 6)
+	left.alignment = BoxContainer.ALIGNMENT_CENTER
+	left.custom_minimum_size = Vector2(440, 0)
+	row.add_child(left)
+
+	var cap := Label.new()
+	cap.text = "結　算"
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cap.add_theme_font_size_override("font_size", 24)
+	cap.add_theme_color_override("font_color", Color("8c8c8c"))
+	left.add_child(cap)
 
 	_result_score = Label.new()
-	_result_score.text = "0"
+	_result_score.text = "0000000"
 	_result_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_score.add_theme_font_size_override("font_size", 40)
-	box.add_child(_result_score)
+	_result_score.add_theme_font_size_override("font_size", 72)
+	_result_score.add_theme_color_override("font_color", Color("ffffff"))
+	left.add_child(_result_score)
+
+	var max_label := Label.new()
+	max_label.text = "/ 1,000,000"
+	max_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	max_label.add_theme_font_size_override("font_size", 14)
+	max_label.add_theme_color_override("font_color", Color("6a6a6a"))
+	left.add_child(max_label)
+
+	left.add_child(_gap(12))
 
 	_result_detail = Label.new()
 	_result_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_result_detail.add_theme_font_size_override("font_size", 15)
 	_result_detail.add_theme_color_override("font_color", Color("9a9a9a"))
-	box.add_child(_result_detail)
+	left.add_child(_result_detail)
 
-	box.add_child(_gap(24))
-	box.add_child(_button("再 來 一 次", func(): _restart()))
-	box.add_child(_button("回 主 選 單", func(): _back_to_menu()))
+	left.add_child(_gap(26))
+
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 12)
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_child(_button("再 來 一 次", func(): _restart(), 190.0))
+	btns.add_child(_button("回 主 選 單", func(): _back_to_menu(), 190.0))
+	left.add_child(btns)
+
+	# --- 右：評價階梯（由好到差，由上往下）---
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 4)
+	right.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(right)
+
+	var gcap := Label.new()
+	gcap.text = "評 價"
+	gcap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gcap.add_theme_font_size_override("font_size", 12)
+	gcap.add_theme_color_override("font_color", Color("5c5c5c"))
+	right.add_child(gcap)
+
+	_grade_rows.clear()
+	for tier in Playfield.GRADE_TIERS:
+		var panel := PanelContainer.new()
+		panel.custom_minimum_size = Vector2(340, 0)
+		right.add_child(panel)
+
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 10)
+		panel.add_child(hb)
+
+		var letter := Label.new()
+		letter.text = str(tier.letter)
+		letter.custom_minimum_size = Vector2(58, 0)
+		letter.add_theme_font_size_override("font_size", 20)
+		hb.add_child(letter)
+
+		var note := Label.new()
+		note.text = str(tier.note)
+		note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		note.add_theme_font_size_override("font_size", 12)
+		hb.add_child(note)
+
+		var need := Label.new()
+		need.text = "—" if int(tier.min) <= 0 else _fmt_num(int(tier.min))
+		need.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		need.add_theme_font_size_override("font_size", 13)
+		hb.add_child(need)
+
+		_grade_rows.append({
+			"letter": str(tier.letter),
+			"panel": panel,
+			"letter_label": letter,
+			"note": note,
+			"need": need,
+		})
 
 	return root
 
@@ -604,8 +1009,8 @@ func _build_result() -> Control:
 func _fill_result() -> void:
 	if playfield == null:
 		return
-	_result_grade.text = playfield.grade_letter()
-	_result_score.text = "%d" % playfield.score
+	var grade := playfield.grade_letter()
+	_result_score.text = _fmt_num(playfield.score)
 	_result_detail.text = "ACC %.2f%%    MAX COMBO %d\nPERFECT %d    GREAT %d    GOOD %d    MISS %d" % [
 		playfield.accuracy() * 100.0,
 		playfield.max_combo,
@@ -614,10 +1019,27 @@ func _fill_result() -> void:
 		playfield.counts["GOOD"],
 		playfield.counts["MISS"],
 	]
+
+	# 評價階梯：命中的那一列亮起來，其餘壓暗
+	for r in _grade_rows:
+		var hit: bool = str(r.letter) == grade
+		var panel: PanelContainer = r.panel
+		if hit:
+			panel.add_theme_stylebox_override("panel", _sb(Color("151515"), Color("ffffff"), 1))
+		else:
+			panel.add_theme_stylebox_override("panel", _sb(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0))
+		var letter: Label = r.letter_label
+		letter.add_theme_font_size_override("font_size", 30 if hit else 20)
+		letter.add_theme_color_override("font_color", Color("ffffff") if hit else Color("4a4a4a"))
+		var note: Label = r.note
+		note.add_theme_color_override("font_color", Color("b8b8b8") if hit else Color("3a3a3a"))
+		var need: Label = r.need
+		need.add_theme_color_override("font_color", Color("d8d8d8") if hit else Color("3a3a3a"))
+
 	# 開發用：自動測試時把結果印到 console，方便用 headless 驗證判定是否正確
 	if "--autoplay" in OS.get_cmdline_user_args():
 		print("[AUTOTEST] grade=%s score=%d acc=%.4f max_combo=%d P=%d G=%d D=%d M=%d" % [
-			playfield.grade_letter(),
+			grade,
 			playfield.score,
 			playfield.accuracy(),
 			playfield.max_combo,
@@ -633,10 +1055,30 @@ func _fill_result() -> void:
 # --------------------------------------------------------------------------
 
 func _default_chart() -> String:
+	# 上次玩過而且檔案還在 → 直接玩那首；否則退回排序後的第一首。
+	if not Settings.last_chart.is_empty() and FileAccess.file_exists(Settings.last_chart):
+		return Settings.last_chart
 	var paths := Chart.scan_charts()
 	if paths.is_empty():
 		return ""
 	return paths[0]
+
+
+func _refresh_menu_hint() -> void:
+	if menu_chart_label == null:
+		return
+	var path := _default_chart()
+	if path.is_empty():
+		menu_chart_label.text = "找不到譜面 · 把 .json 放進 assets/charts/"
+		return
+	var chart := Chart.from_file(path)
+	var prefix := "上次遊玩" if not Settings.last_chart.is_empty() else "第一首"
+	if chart == null:
+		menu_chart_label.text = "%s · %s" % [prefix, path.get_file()]
+		return
+	menu_chart_label.text = "%s · %s  ·  %s Lv.%d" % [
+		prefix, chart.title, chart.difficulty, chart.level
+	]
 
 
 func _begin_rebind(lane: int, btn: Button) -> void:
@@ -693,11 +1135,35 @@ func _gap(h: float) -> Control:
 	return c
 
 
+## 1234567 → "1,234,567"
+func _fmt_num(n: int) -> String:
+	var s := str(absi(n))
+	var out := ""
+	var c := 0
+	for i in range(s.length() - 1, -1, -1):
+		out = s[i] + out
+		c += 1
+		if c % 3 == 0 and i > 0:
+			out = "," + out
+	return ("-" if n < 0 else "") + out
+
+
 func _button(text: String, cb: Callable, min_w := 320.0) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(min_w, 50)
 	b.add_theme_font_size_override("font_size", 19)
+	b.theme = _theme
+	b.pressed.connect(cb)
+	return b
+
+
+## 暫停選單用的窄按鈕（背景切換）
+func _small_button(text: String, cb: Callable, min_w := 120.0) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(min_w, 34)
+	b.add_theme_font_size_override("font_size", 14)
 	b.theme = _theme
 	b.pressed.connect(cb)
 	return b
@@ -717,7 +1183,7 @@ func _style_note_btn(b: Button, on: bool) -> void:
 	b.add_theme_color_override("font_hover_color", Color("ffffff"))
 
 
-func _panel(title: String, min_size: Vector2) -> Dictionary:
+func _panel(title: String, min_size: Vector2, scroll_content := false) -> Dictionary:
 	var root := _full_rect()
 	root.theme = _theme
 	root.add_child(_bg(Color("000000")))
@@ -741,7 +1207,16 @@ func _panel(title: String, min_size: Vector2) -> Dictionary:
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
-	margin.add_child(box)
+	if scroll_content:
+		# 設定項目變多時，小視窗（720p）也要能捲動，不能把「返回」擠出畫面。
+		var sc := ScrollContainer.new()
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.custom_minimum_size = Vector2(min_size.x - 68.0, min_size.y - 130.0)
+		margin.add_child(sc)
+		sc.add_child(box)
+		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	else:
+		margin.add_child(box)
 
 	var label := Label.new()
 	label.text = title

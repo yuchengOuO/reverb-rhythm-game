@@ -16,9 +16,13 @@
   #app{display:grid;grid-template-rows:50px 1fr 132px;height:100%}
   header{display:flex;align-items:center;gap:10px;padding:0 14px;
     background:linear-gradient(180deg,#0d1626,#080d16);border-bottom:1px solid var(--line)}
-  .brand{font-size:20px;font-weight:700;letter-spacing:2px;color:#eaf4ff}
+  .brand{font-size:20px;font-weight:700;letter-spacing:2px;color:#eaf4ff;flex:0 0 auto}
   .brand span{font-size:11px;font-weight:400;letter-spacing:1px;color:var(--dim);margin-left:8px}
   .spacer{flex:1}
+  /* 按鈕不要被壓縮成兩行；窄視窗改用下面幾條 media query 藏次要資訊 */
+  header button{flex:0 0 auto;white-space:nowrap}
+  @media (max-width:1380px){ header .opt{display:none} }
+  @media (max-width:1180px){ #status{display:none} }
   .stat{font-size:11px;color:var(--dim);white-space:nowrap}
   .stat b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
   button{background:#142033;color:#d7e6f7;border:1px solid #24354f;border-radius:7px;
@@ -29,7 +33,15 @@
   button.ghost{background:transparent}
   button.danger:hover{border-color:var(--danger);color:#ffc9c9}
   #status{font-size:11px;color:var(--dim);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #body{display:grid;grid-template-columns:272px 1fr 292px;min-height:0}
+  #body{display:grid;grid-template-columns:var(--leftW,272px) 1fr var(--rightW,292px);
+    min-height:0;transition:grid-template-columns .16s ease}
+  body.collapse-left{--leftW:0px}
+  body.collapse-right{--rightW:0px}
+  body.collapse-left #left,body.collapse-right #right{display:none}
+  /* 收合時 aside 會 display:none，若不指定欄位，中央畫布會被自動排到第 1 欄（寬度 0） */
+  #left{grid-column:1}
+  #center{grid-column:2}
+  #right{grid-column:3}
   aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:10px}
   aside#right{border-right:none;border-left:1px solid var(--line)}
   section{margin-bottom:16px}
@@ -67,6 +79,11 @@
   .sensRow{display:flex;align-items:center;gap:8px;margin:4px 0 8px}
   .sensRow input[type=range]{flex:1;width:auto;margin:0;padding:0;background:none;border:none}
   .sensRow span{font-size:10px;color:var(--dim);width:38px;text-align:right;font-variant-numeric:tabular-nums}
+  /* 單軌透明度（隊形預覽的數值微調區） */
+  .opRow{display:flex;align-items:center;gap:8px;margin:7px 0 0}
+  .opRow label{flex:0 0 auto;white-space:nowrap;margin:0;font-size:10px}
+  .opRow input[type=range]{flex:1;width:auto;margin:0;padding:0;background:none;border:none}
+  .opRow span{width:34px;text-align:right;font-variant-numeric:tabular-nums}
   /* 放大編輯（全螢幕覆蓋層） */
   #bigEdit{position:fixed;inset:0;z-index:60;background:#04070d;display:flex;flex-direction:column}
   #bigEdit.hidden{display:none}
@@ -81,6 +98,80 @@
     background:#16283c;color:#8fb3d4;margin-left:4px}
   .kbd{display:inline-block;padding:1px 5px;border:1px solid #2b3f59;border-radius:4px;
     font-size:10px;color:#9db8d4;background:#0d1624}
+  /* 復原 / 重做 */
+  button:disabled{opacity:.35;cursor:default;border-color:#24354f;background:#101a28}
+  #histLabel{font-size:10px;color:#54708e;white-space:nowrap;max-width:150px;
+    overflow:hidden;text-overflow:ellipsis}
+  /* 關鍵影格資訊浮層 */
+  #kfTip{position:fixed;z-index:80;pointer-events:none;display:none;
+    background:rgba(8,14,24,.97);border:1px solid #2b4260;border-radius:7px;
+    padding:7px 10px;font-size:11px;line-height:1.65;color:var(--text);
+    box-shadow:0 8px 24px rgba(0,0,0,.6);min-width:168px}
+  #kfTip b{color:#ffd479;font-weight:600}
+  #kfTip .kfHead{color:#8fb3d4;font-size:10px;letter-spacing:1px;margin-bottom:3px}
+  #kfTip .kfRow{display:flex;justify-content:space-between;gap:14px;
+    font-variant-numeric:tabular-nums}
+  #kfTip .kfRow span:first-child{color:#6b87a8}
+  /* 右鍵選單 */
+  #kfMenu{position:fixed;z-index:90;display:none;background:#0d1624;
+    border:1px solid #2b4260;border-radius:7px;padding:4px;min-width:150px;
+    box-shadow:0 10px 28px rgba(0,0,0,.65)}
+  #kfMenu div{padding:6px 10px;font-size:12px;border-radius:5px;cursor:pointer;color:#d7e6f7}
+  #kfMenu div:hover{background:#1b2b43}
+  #kfMenu div.sep{height:1px;padding:0;margin:4px 2px;background:#1e2d45;cursor:default}
+  #kfMenu div.sep:hover{background:#1e2d45}
+  #kfMenu div.danger:hover{background:#2a1620;color:#ffb4b4}
+  /* 詳細資料視窗 */
+  .modal{position:fixed;inset:0;z-index:95;background:rgba(3,6,11,.72);
+    display:flex;align-items:center;justify-content:center}
+  .modal.hidden{display:none}
+  .modalBox{width:420px;background:var(--panel);border:1px solid #2b4260;
+    border-radius:12px;padding:16px 18px;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+  .modalBox h2{margin:0 0 4px;font-size:14px;color:#eaf4ff;font-weight:600;letter-spacing:1px}
+  .modalBox .sub{font-size:10px;color:#54708e;margin-bottom:12px}
+  .modalBox .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+  .modalBox label{font-size:10px}
+  .modalBox .foot{display:flex;gap:8px;margin-top:14px}
+  .modalBox .foot .spacer{flex:1}
+  /* 側欄收合按鈕 / 畫布角落的譜面設置 */
+  .iconBtn{padding:5px 9px;font-size:13px;line-height:1;min-width:30px}
+  #btnChartSettings{position:absolute;top:10px;right:10px;z-index:6;
+    width:38px;height:38px;padding:0;border-radius:50%;font-size:17px;
+    background:rgba(14,23,39,.92);border-color:#2b4260}
+  #btnChartSettings:hover{border-color:var(--accent);color:#eaf4ff}
+  /* 譜面設置彈窗 */
+  #chartModal .modalBox{width:min(660px,92vw);max-height:88vh;overflow-y:auto;padding-bottom:0}
+  /* 設定項目較多，小螢幕要能捲動；「完成」固定在底部，不用先捲到底才找得到 */
+  #chartModal .foot{position:sticky;bottom:0;margin:14px -18px 0;padding:12px 18px;
+    background:var(--panel);border-top:1px solid #16233a}
+  #chartModal code{font-size:10px;color:#8fb3d4;background:#0d1624;
+    padding:1px 4px;border-radius:3px}
+  .secTitle{font-size:11px;letter-spacing:1.5px;color:#8fb3d4;margin:14px 0 8px;
+    border-top:1px solid #16233a;padding-top:10px}
+  .secTitle.first{border-top:none;padding-top:0;margin-top:0}
+  .bgPreview{width:100%;height:200px;border:1px solid var(--line);border-radius:8px;
+    background:#050810;display:block;cursor:default}
+  .bgPathRow{display:flex;gap:6px}
+  .bgPathRow input{flex:1}
+  .checkRow{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--dim);
+    margin:8px 0 0}
+  .checkRow input{width:auto;margin:0;accent-color:var(--accent)}
+  /* 譜面檢查結果 */
+  #validateModal .modalBox{max-height:86vh;overflow-y:auto;padding-bottom:0}
+  #validateModal .foot{position:sticky;bottom:0;margin:14px -18px 0;padding:12px 18px;
+    background:var(--panel);border-top:1px solid #16233a}
+  .vlist{display:flex;flex-direction:column;gap:5px;max-height:52vh;overflow-y:auto;
+    margin:6px 0 2px}
+  .vitem{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:1.55;
+    border:1px solid #1e2d45;border-radius:6px;padding:6px 9px;background:#0a111d}
+  .vitem .vtag{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.5px;
+    padding:1px 6px;border-radius:4px;margin-top:1px}
+  .vitem.error{border-color:#4a2028}
+  .vitem.error .vtag{background:#3a1620;color:#ffb4b4}
+  .vitem.warn{border-color:#3f3520}
+  .vitem.warn .vtag{background:#342a12;color:#ffe0a3}
+  .vitem.ok{border-color:#1d3a2e;color:#a9e7c9}
+  .vitem.ok .vtag{background:#13301f;color:#8be0b0}
 </style>
 </head>
 <body>
@@ -90,12 +181,18 @@
     <button id="btnAudio">載入音樂</button>
     <button id="btnChart">載入譜面</button>
     <button id="btnExport" class="primary">匯出 JSON</button>
+    <button id="btnValidate" class="ghost" title="檢查重複音符、超出音樂長度、事件重疊（Ctrl+Shift+S）">檢查譜面</button>
     <button id="btnRestore" class="ghost" title="還原瀏覽器自動儲存的草稿">還原草稿</button>
+    <button id="btnUndo" title="復原 (Ctrl+Z)">↶ 復原</button>
+    <button id="btnRedo" title="重做 (Ctrl+Shift+Z)">↷ 重做</button>
+    <span id="histLabel"></span>
+    <button id="btnToggleLeft" class="ghost iconBtn" title="收合左側欄（Alt+1）">◧</button>
+    <button id="btnToggleRight" class="ghost iconBtn" title="收合右側欄（Alt+2）">◨</button>
     <div class="spacer"></div>
     <div class="stat">BPM <b id="statBpm">120</b></div>
     <div class="stat">拍 <b id="statBeat">0.00</b></div>
-    <div class="stat">時間 <b id="statTime">0.00s</b></div>
-    <div class="stat">音符 <b id="statNotes">0</b></div>
+    <div class="stat opt">小節 <b id="statTime">1:0.00</b></div>
+    <div class="stat opt">音符 <b id="statNotes">0</b></div>
     <div id="status">就緒</div>
   </header>
 
@@ -113,6 +210,19 @@
       </section>
 
       <section>
+        <h3>譜面設置</h3>
+        <button id="btnChartSettings2" class="primary" style="width:100%">⚙ 開啟譜面設置</button>
+        <div class="hint" id="chartSettingsSummary"></div>
+        <button id="btnInitForm" style="margin-top:8px">目前隊形 → 初始位置</button>
+        <button id="btnClearInit" class="ghost" style="margin-top:4px">清除初始位置</button>
+        <div class="hint">
+          初始位置會寫成第 0 拍的關鍵影格。<br>
+          單軌透明度在右邊「隊形預覽」點選軌道後調整。<br>
+          視窗控制（移動／縮放／分割）是遊戲機制，固定開啟。
+        </div>
+      </section>
+
+      <section>
         <h3>節奏</h3>
         <div class="row">
           <label>BPM<input id="inBpm" type="number" step="0.01" value="120"></label>
@@ -125,7 +235,7 @@
       <section>
         <h3>BPM 分析</h3>
         <div class="row">
-          <button id="btnAnalyze">分析 BPM</button>
+          <button id="btnAnalyzeBpm">分析 BPM</button>
           <button id="btnTap">Tap Tempo</button>
         </div>
         <div id="bpmResults" class="list" style="max-height:none"></div>
@@ -139,13 +249,22 @@
           <span class="kbd">空白</span> 播放 / 暫停　<span class="kbd">1–4</span> 在目前拍放音符<br>
           <span class="kbd">滾輪</span> 捲動畫面（載入音樂後 = 移動音樂進度）<br>
           <span class="kbd">Shift+滾輪</span> 縮放　<span class="kbd">Del</span> 刪除選取<br>
-          <span class="kbd">Ctrl+S</span> 匯出
+          <span class="kbd">Ctrl+Z</span> 復原　<span class="kbd">Ctrl+Shift+Z</span> 重做<br>
+          <span class="kbd">Ctrl+S</span> 匯出　<span class="kbd">Ctrl+Shift+S</span> 檢查譜面
+        </div>
+        <div class="hint" style="margin-top:10px;border-top:1px solid #16233a;padding-top:8px">
+          <b style="color:#fbbf24">關鍵影格（菱形標記）</b><br>
+          <span class="kbd">懸停</span> 看完整數值<br>
+          <span class="kbd">雙擊</span> 開啟詳細資料並編輯<br>
+          <span class="kbd">右鍵</span> 選單（複製 / 刪除 / 跳到該拍）<br>
+          右側清單也可以：懸停看四軌數值、雙擊編輯。
         </div>
       </section>
     </aside>
 
     <div id="center">
       <canvas id="roll"></canvas>
+      <button id="btnChartSettings" title="譜面設置：音符 / 視窗初始狀態 / 背景">⚙</button>
     </div>
 
     <aside id="right">
@@ -186,7 +305,50 @@
         </select>
         <div id="winParams" style="margin-top:6px"></div>
         <button id="btnAddWin" style="margin-top:6px">在目前拍新增</button>
+        <div class="hint">動畫長度以「拍」為單位，匯出時依該拍的 BPM 換算成秒。<br>
+          時間軸右側的紫色標記可以直接上下拖曳調整拍數；右鍵刪除。</div>
         <div id="winList" class="list" style="margin-top:6px"></div>
+      </section>
+
+      <section>
+        <h3>特效事件</h3>
+        <button id="btnFxPreview" style="margin-bottom:4px">▶ 套用特效預覽</button>
+        <div id="fxNow" class="hint" style="margin-bottom:6px">關閉中：譜面顯示原始樣子。</div>
+        <select id="selFxType">
+          <option value="flash">白色閃光</option>
+          <option value="glitch">故障</option>
+          <option value="invert">反色</option>
+          <option value="blur">模糊</option>
+          <option value="chroma">色散</option>
+          <option value="scanline">掃描線</option>
+          <option value="vignette">暗角</option>
+          <option value="shake">畫面震動</option>
+          <option value="zoom">鏡頭縮放</option>
+        </select>
+        <div id="fxParams" style="margin-top:6px"></div>
+        <button id="btnAddFx" style="margin-top:6px">在目前拍新增</button>
+        <div id="fxList" class="list" style="margin-top:6px"></div>
+        <div class="hint">持續拍數會依該拍的 BPM 換算成秒後匯出。特效畫在舞台最上層，分割視窗時每一塊都會同步。</div>
+        <div class="hint" style="margin-top:4px">「套用特效預覽」打開後，播放頭經過特效時中間的譜面會跟著變化。點清單裡的事件會跳到那一拍（＝全強度）。標記下方那條細線是淡入區間——線的另一頭才開始淡入。</div>
+      </section>
+
+      <section>
+        <h3>采音輔助</h3>
+        <label style="display:flex;align-items:center;gap:7px">
+          <input id="chkDrum" type="checkbox" style="width:auto;margin:0;accent-color:#f97316">
+          標記鼓點
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;margin-top:4px">
+          <input id="chkMelody" type="checkbox" style="width:auto;margin:0;accent-color:#22d3ee">
+          標記旋律
+        </label>
+        <div class="sensRow" style="margin-top:6px">
+          <label style="margin:0">靈敏度</label>
+          <input id="inOnsetSens" type="range" min="10" max="90" step="5" value="50">
+          <span id="onsetSensVal">50%</span>
+        </div>
+        <button id="btnAnalyzeOnset">分析目前音樂</button>
+        <div id="onsetInfo" class="hint">載入音樂後按「分析目前音樂」。鼓點畫橘線、旋律畫青線。</div>
       </section>
     </aside>
   </div>
@@ -195,6 +357,17 @@
     <div class="transport">
       <button id="btnPlay">▶ 播放</button>
       <button id="btnStop">■ 停止</button>
+      <label title="慢速方便采音；變速會一起改變音高（跟錄音帶一樣）">速度
+        <select id="selRate">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
+      </label>
       <label>吸附
         <select id="selSnap">
           <option value="1">1/1 拍</option>
@@ -203,6 +376,12 @@
           <option value="4" selected>1/4 拍</option>
           <option value="6">1/6 拍</option>
           <option value="8">1/8 拍</option>
+          <option value="12">1/12 拍</option>
+          <option value="16">1/16 拍</option>
+          <option value="24">1/24 拍</option>
+          <option value="32">1/32 拍</option>
+          <option value="256">1/256 拍</option>
+          <option value="0">無限制</option>
         </select>
       </label>
       <label>縮放 <input id="inZoom" type="range" min="40" max="220" value="90"></label>
@@ -227,8 +406,147 @@
   <div id="bigStage"></div>
 </div>
 
+<div id="kfTip"></div>
+<div id="kfMenu"></div>
+
+<div id="kfModal" class="modal hidden">
+  <div class="modalBox">
+    <h2>軌道關鍵影格</h2>
+    <div class="sub" id="kfModalSub">—</div>
+    <div class="grid2">
+      <label>拍<input id="kfBeat" type="number" step="0.001"></label>
+      <label>軌道
+        <select id="kfLane">
+          <option value="0">1</option>
+          <option value="1">2</option>
+          <option value="2">3</option>
+          <option value="3">4</option>
+        </select>
+      </label>
+      <label>X（軌寬）<input id="kfX" type="number" step="0.01"></label>
+      <label>Y（軌寬）<input id="kfY" type="number" step="0.01"></label>
+      <label>旋轉（度）<input id="kfRot" type="number" step="0.5"></label>
+      <label>縮放<input id="kfScale" type="number" step="0.01"></label>
+      <label>透明度（%）<input id="kfAlpha" type="number" step="1" min="0" max="100"></label>
+      <label>緩動
+        <select id="kfEase">
+          <option value="smooth">smooth 平滑</option>
+          <option value="in">in 加速</option>
+          <option value="out">out 減速</option>
+          <option value="back">back 回彈</option>
+          <option value="step">step 跳格</option>
+          <option value="linear">linear 等速</option>
+        </select>
+      </label>
+      <label>位置（小節:拍）<input id="kfTime" type="text" readonly></label>
+    </div>
+    <div class="foot">
+      <button id="kfDelete" class="danger">刪除此影格</button>
+      <span class="spacer"></span>
+      <button id="kfCancel">取消</button>
+      <button id="kfApply" class="primary">套用</button>
+    </div>
+  </div>
+</div>
+
+<div id="chartModal" class="modal hidden">
+  <div class="modalBox">
+    <h2>譜 面 設 置</h2>
+    <div class="sub">這些值會寫進 JSON 的 <code>settings</code>，遊戲進場時直接套用；玩家仍可在暫停選單更換背景。</div>
+
+    <div class="secTitle first">音符</div>
+    <div class="grid2">
+      <label>音符樣式
+        <select id="selNoteStyle">
+          <option value="any">不限（依玩家設定）</option>
+          <option value="bar">只能長條</option>
+          <option value="orb">只能圓球</option>
+        </select>
+      </label>
+      <label>音符大小（0.4–2.5）
+        <input id="inNoteScale" type="number" min="0.4" max="2.5" step="0.05" value="1">
+      </label>
+      <label>全螢幕
+        <select id="selFullscreen">
+          <option value="allow">允許</option>
+          <option value="block">不允許</option>
+        </select>
+      </label>
+      <label class="checkRow" style="align-self:end;margin-bottom:2px">
+        <input id="chkBorderless" type="checkbox" checked> 預設無邊框視窗
+      </label>
+    </div>
+
+    <div class="secTitle">視窗初始狀態</div>
+    <div class="grid2">
+      <label>初始寬度 px（0 = 不指定）
+        <input id="inWinW" type="number" min="0" max="7680" step="10" value="0">
+      </label>
+      <label>初始高度 px（0 = 不指定）
+        <input id="inWinH" type="number" min="0" max="4320" step="10" value="0">
+      </label>
+      <label>初始 X（px）
+        <input id="inWinX" type="number" step="10" value="0">
+      </label>
+      <label>初始 Y（px）
+        <input id="inWinY" type="number" step="10" value="0">
+      </label>
+    </div>
+    <label class="checkRow">
+      <input id="chkWinCenter" type="checkbox" checked> 開場自動置中（忽略 X / Y）
+    </label>
+    <div class="hint">寬或高填 0 = 沿用玩家目前的視窗大小；只改位置也可以。<br>
+      分割視窗與縮放事件都以這個尺寸為基準；縮放事件預設<strong>以畫面中心對稱伸縮</strong>，
+      也可以在事件裡選擇只往某一邊縮放。</div>
+
+    <div class="secTitle">背景圖</div>
+    <div class="bgPathRow">
+      <input id="inBackground" placeholder="res://assets/backgrounds/bg.jpg">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="btnPickBg">選擇圖片…</button>
+      <button id="btnClearBg" class="ghost danger">清除（純黑）</button>
+    </div>
+    <canvas id="bgPreview" class="bgPreview" style="margin-top:8px"></canvas>
+    <label class="checkRow">
+      <input id="chkSafeArea" type="checkbox" checked> 顯示音符安全區（四軌＋判定線）
+    </label>
+    <div class="sensRow" style="margin-top:8px">
+      <label style="margin:0">背景壓暗</label>
+      <input id="inBgDim" type="range" min="0" max="100" step="5" value="45">
+      <span id="bgDimVal">45%</span>
+    </div>
+    <div class="hint">
+      把圖片放進 <code>assets/backgrounds/</code> 後匯出譜面，遊戲才讀得到這個路徑。<br>
+      選圖時只把「檔名」寫進譜面、不會把圖片塞進 JSON；編輯器預覽用的是你本機選的檔案。<br>
+      預覽會依「初始視窗」的寬高比例顯示；勾選安全區可以看到四軌與判定線的位置。<br>
+      遊戲內暫停選單可以切換：純黑 / 譜面預設 / 自訂照片（依譜面分別記住）。<br>
+      譜面沒有設定背景時，遊戲只會提供「純黑」與「自訂」兩種。
+    </div>
+
+    <div class="foot">
+      <span class="spacer"></span>
+      <button id="btnChartDone" class="primary">完 成</button>
+    </div>
+  </div>
+</div>
+
+<div id="validateModal" class="modal hidden">
+  <div class="modalBox" style="width:min(580px,92vw)">
+    <h2>譜 面 檢 查</h2>
+    <div class="sub" id="validateSub">—</div>
+    <div id="validateList" class="vlist"></div>
+    <div class="foot">
+      <span class="spacer"></span>
+      <button id="btnValidateClose">關 閉</button>
+      <button id="btnValidateExport" class="primary">仍要匯出</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="fileAudio" accept="audio/*" hidden>
 <input type="file" id="fileChart" accept=".json,application/json" hidden>
+<input type="file" id="fileBg" accept="image/*" hidden>
 
 <script>
 "use strict";
@@ -236,17 +554,38 @@
 // ===========================================================================
 // 狀態
 // ===========================================================================
+// 譜面 settings 的預設值。舊草稿 / 舊快照可能缺少新欄位，
+// 一律用這份物件補齊（直接覆蓋會讓表單拿到 undefined / NaN）。
+function defaultSettings() {
+  return {
+    note_style: "any", note_scale: 1.0,
+    borderless: true, fullscreen: "allow",
+    // 背景只存「路徑」，不內嵌圖片（與音檔的做法一致）
+    background: "", background_dim: 0.45,
+    // 視窗初始狀態：寬高 0 = 沿用玩家目前視窗
+    win_w: 0, win_h: 0, win_x: 0, win_y: 0, win_centered: true,
+  };
+}
+
 const state = {
   meta: { title: "Untitled", artist: "", difficulty: "Normal", level: 8, audio: "" },
   timing: { offset: 0, bpm_segments: [{ beat: 0, bpm: 120 }] },
   notes: [],
   lanes: [],
   windows: [],
+  // 畫面特效：白閃 / 故障 / 反色…（見 FX_NAMES）
+  // duration 以「拍」儲存；匯出與草稿才換算成秒（JSON 與遊戲端的單位）。
+  effects: [],
+  // 譜面層級設定：寫進 JSON 的 settings 區塊，遊戲會照這個決定長相
+  settings: defaultSettings(),
 };
 
 const audio = {
   ctx: null, buffer: null, source: null,
   playing: false, startCtx: 0, startOffset: 0, pos: 0, name: "",
+  // 播放倍速（0.25–2）。用 AudioBufferSourceNode.playbackRate 做，
+  // 所以音高會跟著變（跟錄音帶一樣）——Web Audio 沒有內建的變速不變調。
+  rate: 1,
 };
 
 let selected = null;
@@ -259,6 +598,13 @@ const LANE_COLORS = ["#ffffff", "#ffffff", "#ffffff", "#ffffff"];
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const round = (v, n = 4) => Math.round(v * 10 ** n) / 10 ** n;
+// 讀數字欄位：缺欄位 / 非數字才用預設值。
+// 不能寫成 `Number(v) || def` —— 0 是合法值（軌道透明度 0），會被吃掉。
+function numOr(v, def) {
+  if (v === null || v === undefined || v === "") return def;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+}
 
 function setStatus(msg, ms = 3500) {
   $("status").textContent = msg;
@@ -266,6 +612,283 @@ function setStatus(msg, ms = 3500) {
   if (ms) setStatus._t = setTimeout(() => ($("status").textContent = "就緒"), ms);
 }
 function markDirty() { dirty = true; }
+
+// ===========================================================================
+// 側欄收合 + 背景預覽（介面狀態，不寫進譜面）
+// ===========================================================================
+// 收合狀態存在 localStorage，重開編輯器會維持上次的樣子。
+const UI_KEY = "reverb_editor_ui_v1";
+function loadUiState() {
+  try { return JSON.parse(localStorage.getItem(UI_KEY) || "{}") || {}; } catch (e) { return {}; }
+}
+const uiState = loadUiState();
+// 安全區提示預設開啟；這是介面狀態，不寫進譜面 JSON。
+if (uiState.safeArea === undefined) uiState.safeArea = true;
+
+function saveUiState() {
+  try { localStorage.setItem(UI_KEY, JSON.stringify(uiState)); } catch (e) {}
+}
+
+function applySidebarState() {
+  document.body.classList.toggle("collapse-left", !!uiState.left);
+  document.body.classList.toggle("collapse-right", !!uiState.right);
+  $("btnToggleLeft").textContent = uiState.left ? "▢" : "◧";
+  $("btnToggleLeft").title = (uiState.left ? "展開" : "收合") + "左側欄（Alt+1）";
+  $("btnToggleRight").textContent = uiState.right ? "▢" : "◨";
+  $("btnToggleRight").title = (uiState.right ? "展開" : "收合") + "右側欄（Alt+2）";
+  // 畫布大小變了，下一幀重算（先讓 CSS 完成排版）
+  requestAnimationFrame(() => { resizeRoll(); drawPreview(); drawBgPreview(); });
+}
+
+function toggleSidebar(side) {
+  uiState[side] = !uiState[side];
+  saveUiState();
+  applySidebarState();
+}
+
+$("btnToggleLeft").onclick = () => toggleSidebar("left");
+$("btnToggleRight").onclick = () => toggleSidebar("right");
+
+// 背景預覽：url 是給瀏覽器看的（object URL），path 是寫進譜面的 res:// 路徑。
+// res:// 瀏覽器讀不到，所以選圖時才會有預覽；重新載入譜面後只顯示路徑。
+let bgPreviewUrl = "";
+let bgPreviewPath = "";
+let bgImage = null;
+
+function setBgPreview(url, path) {
+  bgPreviewUrl = url || "";
+  bgPreviewPath = path || "";
+  bgImage = null;
+  if (!bgPreviewUrl) { syncChartSettingsForm(); return; }
+  const img = new Image();
+  img.onload = () => {
+    bgImage = img;
+    syncChartSettingsForm();
+    drawPreview();
+  };
+  img.onerror = () => { bgImage = null; };
+  img.src = bgPreviewUrl;
+}
+
+function fileNameOf(path) {
+  return String(path || "").split(/[\\/]/).pop();
+}
+
+// 背景安全區預覽：
+// 依照譜面的「初始視窗比例」畫出真正的畫面框，再把四軌、判定線疊上去。
+// 這樣作者放背景圖時，就知道哪些區域會被音符 / 判定球蓋住。
+function drawBgPreview() {
+  const cv = $("bgPreview");
+  if (!cv) return;
+  const rect = cv.getBoundingClientRect();
+  const cw = Math.max(0, Math.round(rect.width));
+  const ch = Math.max(0, Math.round(rect.height));
+  if (cw < 4 || ch < 4) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const pw = Math.max(2, Math.round(cw * dpr));
+  const ph = Math.max(2, Math.round(ch * dpr));
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.fillStyle = "#050810";
+  ctx.fillRect(0, 0, cw, ch);
+
+  const s = state.settings || {};
+  const ww = numOr(s.win_w, 0);
+  const wh = numOr(s.win_h, 0);
+  const aspect = (ww > 0 && wh > 0) ? ww / wh : 16 / 9;
+  const margin = 5;
+  let fw = Math.max(4, cw - margin * 2);
+  let fh = Math.max(4, ch - margin * 2);
+  if (fw / fh > aspect) fw = fh * aspect; else fh = fw / aspect;
+  const fx0 = (cw - fw) / 2;
+  const fy0 = (ch - fh) / 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(fx0, fy0, fw, fh);
+  ctx.clip();
+  ctx.fillStyle = "#000";
+  ctx.fillRect(fx0, fy0, fw, fh);
+
+  // 背景圖 cover（與遊戲的畫法一致）
+  if (bgImage && bgImage.naturalWidth > 0 && bgImage.naturalHeight > 0) {
+    const iw = bgImage.naturalWidth, ih = bgImage.naturalHeight;
+    const fit = Math.max(fw / iw, fh / ih);
+    const dw = iw * fit, dh = ih * fit;
+    ctx.drawImage(bgImage, fx0 + (fw - dw) / 2, fy0 + (fh - dh) / 2, dw, dh);
+  }
+
+  // 壓暗
+  const dim = clamp(numOr(s.background_dim, 0.45), 0, 1);
+  if (dim > 0.001) {
+    ctx.fillStyle = `rgba(0,0,0,${dim})`;
+    ctx.fillRect(fx0, fy0, fw, fh);
+  }
+
+  if (uiState.safeArea !== false) {
+    // 對應 Playfield._layout()：
+    //   usable = min(stage_w × 0.86, 640)
+    //   lane_w = usable / 4；判定線在高度 84% 的位置。
+    const stageW = ww > 0 ? ww : 1280;
+    const scale = fw / stageW;
+    const usable = Math.min(fw * 0.86, 640 * scale);
+    const lw = usable / 4;
+    const cx = fx0 + fw * 0.5;
+    const judgeY = fy0 + fh * 0.84;
+
+    for (let i = 0; i < 4; i++) {
+      const x = cx + (i - 1.5) * lw - lw / 2;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.020)" : "rgba(255,255,255,0.035)";
+      ctx.fillRect(x, fy0, lw, Math.max(0, judgeY - fy0));
+      ctx.strokeStyle = "rgba(255,255,255,0.20)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, fy0);
+      ctx.lineTo(x + 0.5, judgeY);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.20)";
+    ctx.beginPath();
+    ctx.moveTo(cx + 1.5 * lw + 0.5, fy0);
+    ctx.lineTo(cx + 1.5 * lw + 0.5, judgeY);
+    ctx.stroke();
+
+    // 判定線 + 四顆判定球
+    ctx.strokeStyle = "rgba(56,189,248,0.92)";
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(fx0, judgeY + 0.5);
+    ctx.lineTo(fx0 + fw, judgeY + 0.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const rr = clamp(lw * 0.30, 2, 11);
+    for (let i = 0; i < 4; i++) {
+      const x = cx + (i - 1.5) * lw;
+      ctx.strokeStyle = "rgba(255,255,255,0.62)";
+      ctx.beginPath();
+      ctx.arc(x, judgeY, rr, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(56,189,248,0.16)";
+      ctx.fill();
+    }
+
+    // 標籤（字很小，但足夠辨識區塊）
+    ctx.fillStyle = "rgba(140,190,230,0.85)";
+    ctx.font = "9px ui-monospace,monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("音符區", fx0 + 4, fy0 + 11);
+    ctx.fillStyle = "rgba(56,189,248,0.95)";
+    ctx.fillText("判定線", fx0 + 4, judgeY - 4);
+  } else if (s.background) {
+    // 沒開安全區時，至少提示這是「譜面指定但瀏覽器讀不到」的圖片。
+    ctx.fillStyle = "rgba(160,185,210,0.55)";
+    ctx.font = "10px ui-monospace,monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(fileNameOf(s.background), fx0 + fw / 2, fy0 + fh / 2);
+  }
+
+  if (!bgImage && !s.background) {
+    ctx.fillStyle = "rgba(120,145,170,0.55)";
+    ctx.font = "10px ui-monospace,monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("純黑背景", fx0 + fw / 2, fy0 + fh / 2);
+  }
+  ctx.restore();
+
+  // 視窗框線與尺寸
+  ctx.strokeStyle = "rgba(120,170,220,0.55)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(fx0 + 0.5, fy0 + 0.5, Math.max(0, fw - 1), Math.max(0, fh - 1));
+  ctx.fillStyle = "rgba(200,220,240,0.78)";
+  ctx.font = "9px ui-monospace,monospace";
+  ctx.textAlign = "right";
+  const ratio = ww > 0 && wh > 0 ? `${ww}×${wh}` : "16:9（未指定視窗）";
+  ctx.fillText(ratio, fx0 + fw - 4, fy0 + fh - 4);
+}
+
+// ===========================================================================
+// 復原 / 重做
+// ===========================================================================
+// 用「整份狀態的快照」而不是逐動作反向操作：一個拖曳可能同時改到音符、
+// 關鍵影格、視窗事件，逐動作反向很容易只還原一半。快照法永遠一致，
+// 程式碼也短。代價是每步複製一份 JSON —— 幾百 KB 的譜面可以忽略。
+//
+// 用法：動作「做完」之後呼叫 commit("動作名稱")。
+// 拖曳這種連續動作在放開滑鼠時呼叫一次，整段拖曳就是一步。
+const history = { stack: [], index: -1, limit: 60 };
+
+function snapshot() {
+  return JSON.stringify({
+    meta: state.meta, timing: state.timing, notes: state.notes,
+    lanes: state.lanes, windows: state.windows, effects: state.effects,
+    settings: state.settings,
+  });
+}
+
+function commit(label) {
+  const snap = snapshot();
+  if (history.index >= 0 && history.stack[history.index].snap === snap) {
+    // 狀態沒變（例如拖回原位）就不新增一步，只更新標籤
+    if (label) history.stack[history.index].label = label;
+    updateHistoryUI();
+    return;
+  }
+  // 復原過之後又做了新動作 → 原本的重做分支就作廢
+  history.stack.length = history.index + 1;
+  history.stack.push({ snap, label });
+  if (history.stack.length > history.limit) history.stack.shift();
+  history.index = history.stack.length - 1;
+  updateHistoryUI();
+}
+
+function restoreSnapshot(snap) {
+  const data = JSON.parse(snap);
+  state.meta = data.meta;
+  state.timing = data.timing;
+  state.notes = data.notes;
+  state.lanes = data.lanes;
+  state.windows = data.windows;
+  state.effects = data.effects || [];
+  // 用 Object.assign 補預設值：舊草稿 / 舊快照的 settings 可能沒有新欄位，
+  // 直接覆蓋會讓表單拿到 undefined（數字欄位顯示 NaN）。
+  state.settings = Object.assign(defaultSettings(), data.settings || {});
+  selected = null;
+  closeKfMenu();
+  syncFormFromState();
+  refreshLists();
+  syncDraftFromChart(true);
+  markDirty();
+}
+
+function undo() {
+  if (history.index <= 0) { setStatus("沒有可以復原的動作了"); return; }
+  const label = history.stack[history.index].label || "上一步";
+  history.index--;
+  restoreSnapshot(history.stack[history.index].snap);
+  updateHistoryUI();
+  setStatus("復原：" + label);
+}
+
+function redo() {
+  if (history.index >= history.stack.length - 1) { setStatus("沒有可以重做的動作了"); return; }
+  history.index++;
+  restoreSnapshot(history.stack[history.index].snap);
+  updateHistoryUI();
+  setStatus("重做：" + (history.stack[history.index].label || ""));
+}
+
+function updateHistoryUI() {
+  const cur = history.stack[history.index];
+  $("btnUndo").disabled = history.index <= 0;
+  $("btnRedo").disabled = history.index >= history.stack.length - 1;
+  $("histLabel").textContent = cur ? cur.label || "" : "";
+}
+
+$("btnUndo").onclick = undo;
+$("btnRedo").onclick = redo;
 
 // ===========================================================================
 // 拍 ↔ 秒
@@ -307,8 +930,31 @@ function beatOfTime(t) {
 const songTimeOfBeat = (beat) => state.timing.offset + timeOfBeat(beat);
 const beatAtSongTime = (t) => beatOfTime(t - state.timing.offset);
 
-function snapStep() { return 1 / parseInt($("selSnap").value, 10); }
-function snapBeat(b) { const s = snapStep(); return Math.round(b / s) * s; }
+// 長度換算：編輯器 UI 一律用「拍」，JSON / 遊戲端用「秒」。
+// 這兩個函式會依該拍所在的 BPM 段換算，所以中途變速也不會算錯。
+function beatsOfSeconds(beat, seconds) {
+  return beatOfTime(timeOfBeat(beat) + Math.max(numOr(seconds, 0), 0)) - beat;
+}
+function secondsOfBeats(beat, beats) {
+  return timeOfBeat(beat + Math.max(numOr(beats, 0), 0)) - timeOfBeat(beat);
+}
+
+// 小節:拍（4/4）。譜面沒有拍號資訊，這裡只是給人看的位置標示。
+const BEATS_PER_BAR = 4;
+function barBeat(beat) {
+  if (!Number.isFinite(beat)) return "—";
+  if (beat < 0) return "前奏 " + (-beat).toFixed(2);
+  const bar = Math.floor(beat / BEATS_PER_BAR) + 1;
+  return bar + ":" + (beat - (bar - 1) * BEATS_PER_BAR).toFixed(2);
+}
+
+// 吸附：值 = 每一拍切成幾份。0 = 無限制（完全不吸附，可以放到任意位置）
+function snapDiv() { return parseInt($("selSnap").value, 10) || 0; }
+function snapStep() { const n = snapDiv(); return n > 0 ? 1 / n : 0; }
+function snapBeat(b) {
+  const s = snapStep();
+  return s > 0 ? Math.round(b / s) * s : round(b, 4);
+}
 
 // ===========================================================================
 // 音訊
@@ -321,7 +967,23 @@ function ensureCtx() {
 
 function songTime() {
   if (!audio.playing) return audio.pos;
-  return audio.startOffset + (audio.ctx.currentTime - audio.startCtx);
+  // 倍速播放時，經過的「歌曲時間」只有實際時間的 rate 倍
+  return audio.startOffset + (audio.ctx.currentTime - audio.startCtx) * audio.rate;
+}
+
+/** 播放倍速。改的時候如果正在播，會從目前位置重新起播，不會跳拍。 */
+function setRate(r) {
+  r = clamp(Math.round(numOr(r, 1) * 100) / 100, 0.25, 2);
+  const wasPlaying = audio.playing;
+  const t = wasPlaying ? songTime() : audio.pos;
+  if (wasPlaying) pause();
+  audio.rate = r;
+  audio.pos = clamp(t, 0, Math.max(0, audioDuration()));
+  if (wasPlaying) play();
+  const sel = $("selRate");
+  if (sel) sel.value = String(r);
+  try { localStorage.setItem("reverb.rate", String(r)); } catch (e) {}
+  setStatus(r === 1 ? "播放速度 1×" : `播放速度 ${r}×（音高會一起變低／高）`);
 }
 
 function audioDuration() { return audio.buffer ? audio.buffer.duration : 0; }
@@ -334,6 +996,7 @@ function play() {
   src.buffer = audio.buffer;
   src.connect(ctx.destination);
   const offset = clamp(audio.pos, 0, Math.max(0, audio.buffer.duration - 0.02));
+  src.playbackRate.value = audio.rate;
   src.start(0, offset);
   audio.source = src;
   audio.playing = true;
@@ -408,8 +1071,229 @@ function computePeaks(buffer, buckets = 2400) {
   return peaks;
 }
 
-function renderWaveCache(w, h, dpr) {
-  waveCache.width = Math.max(1, Math.round(w * dpr));
+// ===========================================================================
+// 采音輔助：鼓點 / 旋律音頭
+// ===========================================================================
+// 全部在瀏覽器裡算，不需要後端：
+//   1. 混成單聲道，2048 點 / hop 1024 做 STFT（Hann 窗）
+//   2. 每格算頻譜通量（spectral flux），分成三個頻段：
+//        低頻 < 160Hz        → 大鼓
+//        中頻 160–2000Hz     → 旋律 / 人聲
+//        高頻 2k–8kHz        → 小鼓 / 鈸
+//   3. 鼓點 = 低頻 + 高頻通量的局部極大（自適應門檻）
+//   4. 旋律 = 中頻通量的局部極大，再補上「音高改變」的位置
+//      （HPS 諧波疊加找基頻；同音重複靠通量、換音靠音高，兩者互補）
+//
+// 分析結果只存「秒 + 強度」，畫線時才換成拍。
+// 靈敏度滑桿是「畫的時候才過濾」，所以拖滑桿不需要重新分析。
+const onset = {
+  ready: false,
+  drum: [],      // [{ t, v }]，v = 0~1 相對強度
+  melody: [],
+  showDrum: false,
+  showMelody: false,
+  sens: 0.5,
+};
+
+function onsetCut() {
+  // 靈敏度 0 → 只留最強的（門檻 0.8）；靈敏度 1 → 幾乎全留（0.1）
+  return 0.10 + (1 - onset.sens) * 0.70;
+}
+
+function _normalizeMax(arr) {
+  // 用 97 百分位當基準，而不是最大值：
+  // 一首歌只要有一顆特別大聲的鼓，用最大值會讓其他全部變成 0.05，
+  // 靈敏度滑桿就完全失去意義。
+  const n = arr.length;
+  if (!n) return 1;
+  const step = Math.max(1, Math.floor(n / 4000));
+  const sample = [];
+  for (let i = 0; i < n; i += step) sample.push(arr[i]);
+  sample.sort((a, b) => a - b);
+  let ref = sample[Math.min(sample.length - 1, Math.floor(sample.length * 0.97))];
+  if (!(ref > 1e-9)) {
+    ref = sample[sample.length - 1];
+    if (!(ref > 1e-9)) return 1;
+  }
+  for (let i = 0; i < n; i++) arr[i] = Math.min(1, arr[i] / ref);
+  return ref;
+}
+
+// 局部極大 + 自適應門檻。gapFrames 是最短間隔（以格為單位）。
+function _pickPeaks(arr, gapFrames, k) {
+  const n = arr.length;
+  const out = [];
+  const W = 12;
+  let last = -1e9;
+  for (let i = 1; i < n - 1; i++) {
+    const v = arr[i];
+    if (v <= 1e-5) continue;
+    if (v < arr[i - 1] || v < arr[i + 1]) continue;
+    let sum = 0, cnt = 0;
+    for (let j = Math.max(0, i - W); j <= Math.min(n - 1, i + W); j++) {
+      sum += arr[j];
+      cnt++;
+    }
+    const mean = sum / cnt;
+    if (v < mean * k) continue;
+    if (i - last < gapFrames) continue;
+    out.push(i);
+    last = i;
+  }
+  return out;
+}
+
+async function analyzeOnsets() {
+  const buf = audio.buffer;
+  if (!buf) { setStatus("請先載入音樂檔"); return; }
+  const sr = buf.sampleRate;
+  const ch0 = buf.getChannelData(0);
+  const ch1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
+  const N = 2048;
+  const hop = 1024;
+  const total = Math.max(1, Math.floor((ch0.length - N) / hop) + 1);
+  const binHz = sr / N;
+
+  const kLow = Math.max(2, Math.round(160 / binHz));
+  const kMid1 = kLow + 1;
+  const kMid2 = Math.round(2000 / binHz);
+  const kHi1 = kMid2 + 1;
+  const kHi2 = Math.min(N / 2 - 2, Math.round(8000 / binHz));
+
+  const win = new Float32Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1));
+
+  const re = new Float32Array(N);
+  const im = new Float32Array(N);
+  const mag = new Float32Array(N / 2);
+  const prev = new Float32Array(N / 2);
+
+  const lowF = new Float32Array(total);
+  const midF = new Float32Array(total);
+  const highF = new Float32Array(total);
+  const midiArr = new Int16Array(total).fill(-1);
+
+  const kMin = Math.max(3, Math.round(110 / binHz));
+  const kMax = Math.min(N / 2 - 5, Math.round(1000 / binHz));
+
+  setStatus("分析中… 0%", 0);
+  for (let f = 0; f < total; f++) {
+    const off = f * hop;
+    for (let i = 0; i < N; i++) {
+      const s = ch0[off + i] + (ch1 ? ch1[off + i] : 0);
+      re[i] = (ch1 ? s * 0.5 : s) * win[i];
+      im[i] = 0;
+    }
+    fft(re, im);
+
+    let lo = 0, mid = 0, hi = 0, bandSum = 0;
+    for (let k = 1; k < N / 2; k++) {
+      const m = Math.hypot(re[k], im[k]);
+      mag[k] = m;
+      const d = m - prev[k];
+      if (d > 0) {
+        if (k <= kLow) lo += d;
+        else if (k <= kMid2) mid += d;
+        if (k >= kHi1 && k <= kHi2) hi += d;
+      }
+      if (k >= kMin && k <= kMax) bandSum += m;
+    }
+    lowF[f] = lo;
+    midF[f] = mid;
+    highF[f] = hi;
+
+    // 音高：諧波疊加（HPS），只用來判斷「換音」的瞬間
+    let bestK = 0, bestV = 0;
+    for (let k = kMin; k <= kMax; k++) {
+      let v = mag[k];
+      if (k * 2 < N / 2) v += mag[k * 2] * 0.6;
+      if (k * 3 < N / 2) v += mag[k * 3] * 0.4;
+      if (k * 4 < N / 2) v += mag[k * 4] * 0.2;
+      if (v > bestV) { bestV = v; bestK = k; }
+    }
+    if (bestK > kMin && bestK < kMax && bandSum > 1e-4) {
+      const a = mag[bestK - 1], b = mag[bestK], c = mag[bestK + 1];
+      const den = a - 2 * b + c;
+      let delta = 0;
+      if (Math.abs(den) > 1e-9) delta = clamp((a - c) / (2 * den), -0.5, 0.5);
+      const f0 = (bestK + delta) * binHz;
+      const clarity = bestV / (bandSum + 1e-9);
+      if (f0 > 80 && clarity > 0.12) {
+        midiArr[f] = Math.round(69 + 12 * Math.log2(f0 / 440));
+      }
+    }
+
+    prev.set(mag);
+
+    if (f % 600 === 0) {
+      setStatus(`分析中… ${Math.round((f / total) * 100)}%`, 0);
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+
+  _normalizeMax(lowF);
+  _normalizeMax(midF);
+  _normalizeMax(highF);
+
+  // --- 鼓點 ---
+  const perc = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    perc[i] = Math.min(1, lowF[i] * 0.85 + highF[i] * 0.85);
+  }
+  const gapDrum = Math.max(1, Math.round((0.07 * sr) / hop));
+  const drumIdx = _pickPeaks(perc, gapDrum, 1.25);
+
+  // --- 旋律 ---
+  const mel = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    // 高頻太強（鈸、雜訊）時壓低，避免把打擊樂標成旋律
+    mel[i] = midF[i] * clamp(1.15 - highF[i] * 0.9, 0.25, 1);
+  }
+  const gapMel = Math.max(1, Math.round((0.10 * sr) / hop));
+  const melIdx = _pickPeaks(mel, gapMel, 1.3);
+
+  const frameTime = (i) => (i * hop + N * 0.5) / sr;
+  const drum = drumIdx.map((i) => ({ t: frameTime(i), v: perc[i] }));
+  const melody = melIdx.map((i) => ({ t: frameTime(i), v: mel[i] }));
+
+  // 補「音高改變」的音頭（連奏、滑音這種沒有明顯攻擊的旋律）
+  let lastMidi = -1;
+  let lastT = -1e9;
+  for (let f = 2; f < total - 2; f++) {
+    const m = midiArr[f];
+    if (m < 0) { lastMidi = -1; continue; }
+    if (m === lastMidi) continue;
+    // 要求連續 3 格同一個音，濾掉顫音造成的抖動
+    if (midiArr[f + 1] !== m || midiArr[f + 2] !== m) { lastMidi = m; continue; }
+    const t = frameTime(f);
+    if (t - lastT >= 0.12) {
+      melody.push({ t, v: 0.45 });
+      lastT = t;
+    }
+    lastMidi = m;
+  }
+  melody.sort((a, b) => a.t - b.t);
+  // 60ms 內只留最強的一個
+  const merged = [];
+  for (const p of melody) {
+    const last = merged[merged.length - 1];
+    if (last && p.t - last.t < 0.06) {
+      if (p.v > last.v) merged[merged.length - 1] = p;
+    } else {
+      merged.push(p);
+    }
+  }
+
+  onset.drum = drum;
+  onset.melody = merged;
+  onset.ready = true;
+  $("onsetInfo").textContent =
+    `鼓點 ${drum.length} 個 · 旋律 ${merged.length} 個（靈敏度 ${Math.round(onset.sens * 100)}%）`;
+  setStatus(`分析完成：鼓點 ${drum.length}、旋律 ${merged.length}`);
+  drawRoll();
+}
+
+function renderWaveCache(w, h, dpr) {  waveCache.width = Math.max(1, Math.round(w * dpr));
   waveCache.height = Math.max(1, Math.round(h * dpr));
   const ctx = waveCache.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -463,6 +1347,7 @@ function drawWave() {
   const cv = $("wave");
   const dpr = window.devicePixelRatio || 1;
   const w = cv.clientWidth, h = cv.clientHeight;
+  if (w <= 0 || h <= 0) return;
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
     cv.width = Math.round(w * dpr);
     cv.height = Math.round(h * dpr);
@@ -527,7 +1412,11 @@ function yOfBeat(beat) { return playheadY() - (beat - currentBeat() - scrollBeat
 function beatAtY(y) { return currentBeat() + scrollBeat + (playheadY() - y) / pxPerBeat; }
 
 function roundRect(ctx, x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
+  // 側欄收合時畫布寬度可能是 0；負的半徑會讓 arcTo 丟 IndexSizeError，
+  // 整個主迴圈會因此停掉（畫面看起來像「全部變黑」）。這裡先夾住。
+  w = Math.max(0, w);
+  h = Math.max(0, h);
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -541,6 +1430,7 @@ function drawRoll() {
   if (rollW !== rollEl.clientWidth || rollH !== rollEl.clientHeight) resizeRoll();
   const ctx = rollCtx;
   const w = rollW, h = rollH;
+  if (w <= 0 || h <= 0) return;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#050810";
   ctx.fillRect(0, 0, w, h);
@@ -549,6 +1439,9 @@ function drawRoll() {
   const cb = currentBeat();
 
   // 軌道底色
+  // 這裡刻意「不」套用單軌透明度：捲軸是對拍用的工作區，
+  // 把某一軌調暗會讓那一軌的音符看不見，等於沒辦法編輯。
+  // 實際長相請看右邊的隊形預覽（那裡會即時反映）。
   for (let i = 0; i < 4; i++) {
     ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.016)" : "rgba(255,255,255,0.028)";
     ctx.fillRect(laneX(i), 0, lw, h);
@@ -562,6 +1455,29 @@ function drawRoll() {
   const bTop = beatAtY(0);
   const bBot = beatAtY(h);
   const step = snapStep();
+
+  // 采音輔助：把偵測到的鼓點 / 旋律畫成虛線（在音符下面，不擋編輯）
+  if (onset.ready) {
+    const cut = onsetCut();
+    const drawSet = (list, color) => {
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      for (const p of list) {
+        if (p.v < cut) continue;
+        const y = yOfBeat(beatAtSongTime(p.t));
+        if (y < -20 || y > h + 20) continue;
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
+    if (onset.showDrum) drawSet(onset.drum, "rgba(249,115,22,0.34)");
+    if (onset.showMelody) drawSet(onset.melody, "rgba(34,211,238,0.34)");
+  }
 
   // 小節 / 拍線
   const b0 = Math.floor(bBot) - 1;
@@ -641,26 +1557,49 @@ function drawRoll() {
     const y = yOfBeat(k.beat);
     if (y < -10 || y > h + 10) continue;
     const x = laneX(k.lane) + lw - 7;
-    ctx.fillStyle = "rgba(251,191,36,0.75)";
+    const hot = k === kfHover;
+    if (hot) {
+      // 滑鼠停在上面 → 加一圈提示「這裡可以點」
+      ctx.strokeStyle = "#ffd479";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(x, y, 8.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const r = hot ? 5 : 4;
+    ctx.fillStyle = hot ? "#ffe9b0" : "rgba(251,191,36,0.75)";
     ctx.beginPath();
-    ctx.moveTo(x, y - 4);
-    ctx.lineTo(x + 4, y);
-    ctx.lineTo(x, y + 4);
-    ctx.lineTo(x - 4, y);
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r, y);
     ctx.closePath();
     ctx.fill();
   }
 
-  // 視窗事件標記
+  // 視窗事件標記（可拖曳）
   for (const ev of state.windows) {
     const y = yOfBeat(ev.beat);
     if (y < -10 || y > h + 10) continue;
-    ctx.fillStyle = "rgba(167,139,250,0.85)";
+    const hot = ev === winHover || (drag && drag.mode === "win" && drag.ev === ev);
+    const left = hot ? w - SIDE + 2 : w - SIDE + 6;
+    if (hot) {
+      ctx.strokeStyle = "rgba(196,181,253,0.95)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(left - 2, y - 8);
+      ctx.lineTo(w - 5, y - 8);
+      ctx.lineTo(w - 5, y + 8);
+      ctx.lineTo(left - 2, y + 8);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.fillStyle = hot ? "rgba(216,203,255,0.98)" : "rgba(167,139,250,0.85)";
     ctx.beginPath();
-    ctx.moveTo(w - SIDE + 6, y - 5);
+    ctx.moveTo(left, y - 5);
     ctx.lineTo(w - 8, y - 5);
     ctx.lineTo(w - 8, y + 5);
-    ctx.lineTo(w - SIDE + 6, y + 5);
+    ctx.lineTo(left, y + 5);
     ctx.closePath();
     ctx.fill();
     ctx.save();
@@ -670,6 +1609,66 @@ function drawRoll() {
     ctx.font = "bold 7px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(ev.type[0].toUpperCase(), 0, 2.5);
+    ctx.restore();
+    // 懸停時顯示是哪個事件、目前拍數
+    if (hot) {
+      const head = ev.type === "resize" && ANCHOR_LABELS[ev.anchor]
+        ? "縮放·" + ANCHOR_LABELS[ev.anchor]
+        : ev.type === "split"
+          ? `分割·${ev.axis === "horizontal" ? "水平線" : "垂直線"}·${ev.move === "same" ? "同向" : "相反"}`
+          : ev.type;
+      const label = `${head} · 拍 ${round(ev.beat, 3)}`;
+      ctx.font = "10px ui-monospace,monospace";
+      const tw = ctx.measureText(label).width;
+      const bx = Math.max(2, w - SIDE - tw - 14);
+      ctx.fillStyle = "rgba(10,16,26,0.94)";
+      ctx.strokeStyle = "rgba(167,139,250,0.65)";
+      ctx.lineWidth = 1;
+      roundRect(ctx, bx, y - 19, tw + 12, 16, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#d8cbff";
+      ctx.textAlign = "left";
+      ctx.fillText(label, bx + 6, y - 7);
+    }
+  }
+
+  // 特效事件標記（左側，橘色）
+  for (const ev of state.effects) {
+    const y = yOfBeat(ev.beat);
+    if (y < -10 || y > h + 10) continue;
+
+    // 淡入提前量：效果從這條線開始淡入，到標記（實心方塊）那一拍才是全強度。
+    // 畫在標記「下面」是因為拍數越小越靠下（捲軸往播放頭方向掉）。
+    const lead = fxLeadBeats(ev);
+    if (lead > 0.001) {
+      const y0 = yOfBeat(ev.beat - lead);
+      if (Math.abs(y0 - y) > 2) {
+        ctx.strokeStyle = "rgba(249,115,22,0.28)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(14, y);
+        ctx.lineTo(14, y0);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+    }
+
+    ctx.fillStyle = "rgba(249,115,22,0.85)";
+    ctx.beginPath();
+    ctx.moveTo(8, y - 5);
+    ctx.lineTo(SIDE - 6, y - 5);
+    ctx.lineTo(SIDE - 6, y + 5);
+    ctx.lineTo(8, y + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.save();
+    ctx.translate(9, y);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = "#0a0f19";
+    ctx.font = "bold 7px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("F", 0, 2.5);
     ctx.restore();
   }
 
@@ -686,10 +1685,281 @@ function drawRoll() {
   ctx.fillStyle = "rgba(56,189,248,0.85)";
   ctx.font = "11px ui-monospace,monospace";
   ctx.fillText(cb.toFixed(2), 6, py - 6);
+
+  // 特效預覽：最後才做，才會蓋住整個譜面（跟遊戲一樣）
+  if (fxPreviewOn && state.effects.length) {
+    const fx = activeFxAt(songTime());
+    const names = Object.keys(fx).filter((k) => FX_NAMES[k]);
+    if (names.length) applyRollFx(fx);
+    setFxNow(names, fx);
+  } else {
+    setFxNow([], {});
+  }
 }
+
+// ===========================================================================
+// 特效預覽
+// ---------------------------------------------------------------------------
+// 遊戲端是在合成 shader 裡做的；這裡沒有 shader，改用「整張畫布快照 →
+// 重畫（縮放／震動／濾鏡／條塊／色散）→ 疊加（閃光／掃描線／暗角）」。
+// 係數刻意對齊 WindowDirector.CROP_SHADER，看起來會接近實際遊玩。
+// ===========================================================================
+let fxPreviewOn = false;
+let fxBuf = null, fxBufCtx = null;
+let fxTint = null, fxTintCtx = null;
+let fxSplit = null, fxSplitCtx = null;
+let fxScan = { key: "", cv: null };
+let fxNowText = "";
+
+/** 跟遊戲端 EffectDirector.KIND_DEFAULTS 的 attack / release 一致 */
+const FX_ENV = {
+  flash: [0.02, 1.00], glitch: [0.06, 0.45], invert: [0.25, 0.55],
+  blur: [0.15, 0.45], chroma: [0.08, 0.45], scanline: [0.12, 0.40],
+  vignette: [0.20, 0.45], shake: [0.02, 0.60], zoom: [0.05, 0.50],
+};
+
+function fxEnvelope(type, p) {
+  const [atk, rel] = FX_ENV[type] || FX_ENV.flash;
+  const a = clamp(p / Math.max(atk, 0.001), 0, 1);
+  const r = clamp((1 - p) / Math.max(rel, 0.001), 0, 1);
+  return Math.min(a, r);
+}
+
+/** 某個時間點有哪些特效在生效（同種取最大值，跟遊戲一樣不疊加） */
+function activeFxAt(t) {
+  const acc = {};
+  for (const ev of state.effects) {
+    if (!FX_NAMES[ev.type]) continue;
+    const dur = Math.max(secondsOfBeats(ev.beat, numOr(ev.duration, 0.7)), 0.01);
+    const atk = (FX_ENV[ev.type] || FX_ENV.flash)[0];
+    // 標記的 beat 是「最強的那一瞬間」：淡入要 atk × dur 秒，所以起點往前推
+    const start = songTimeOfBeat(ev.beat) - atk * dur;
+    if (t < start || t >= start + dur) continue;
+    // 暫停時也照實際包絡算：把播放頭停在標記上就是 100%，
+    // 停在淡入段就會看到中間值（狀態列會寫幾 %），不會騙人。
+    const k = clamp(numOr(ev.strength, 1), 0, 1) * fxEnvelope(ev.type, (t - start) / dur);
+    if (k <= 0.001) continue;
+    acc[ev.type] = Math.max(acc[ev.type] || 0, k);
+  }
+  return acc;
+}
+
+/** 這個事件的淡入從哪一拍開始（給時間軸畫「提前量」用） */
+function fxLeadBeats(ev) {
+  const atk = (FX_ENV[ev.type] || FX_ENV.flash)[0];
+  return Math.max(numOr(ev.duration, 0.7), 0.05) * atk;
+}
+
+function fxHash(n) {
+  const x = Math.sin(n * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** 把一張畫布染成單一色頻（保留原本的 alpha） */
+function fxTintCopy(src, color) {
+  if (!fxTint || fxTint.width !== src.width || fxTint.height !== src.height) {
+    fxTint = document.createElement("canvas");
+    fxTint.width = src.width; fxTint.height = src.height;
+    fxTintCtx = fxTint.getContext("2d");
+  }
+  const c = fxTintCtx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = "source-over";
+  c.clearRect(0, 0, fxTint.width, fxTint.height);
+  c.drawImage(src, 0, 0);
+  c.globalCompositeOperation = "multiply";
+  c.fillStyle = color;
+  c.fillRect(0, 0, fxTint.width, fxTint.height);
+  c.globalCompositeOperation = "destination-in";
+  c.drawImage(src, 0, 0);
+  c.globalCompositeOperation = "source-over";
+  return fxTint;
+}
+
+/** RGB 三通道各自位移後相加（色散 / 故障的分色） */
+function fxSplitImage(src, d) {
+  if (!fxSplit || fxSplit.width !== src.width || fxSplit.height !== src.height) {
+    fxSplit = document.createElement("canvas");
+    fxSplit.width = src.width; fxSplit.height = src.height;
+    fxSplitCtx = fxSplit.getContext("2d");
+  }
+  const c = fxSplitCtx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = "source-over";
+  c.clearRect(0, 0, fxSplit.width, fxSplit.height);
+  c.globalCompositeOperation = "lighter";
+  c.drawImage(fxTintCopy(src, "#ff0000"), -d, 0);
+  c.drawImage(fxTintCopy(src, "#00ff00"), 0, 0);
+  c.drawImage(fxTintCopy(src, "#0000ff"), d, 0);
+  c.globalCompositeOperation = "source-over";
+  return fxSplit;
+}
+
+/** 掃描線用的 1px 寬 tile（正弦明暗），依強度快取 */
+function fxScanTile(k, dpr) {
+  const period = Math.max(2, 3 * dpr);
+  const key = k.toFixed(2) + "|" + dpr.toFixed(2);
+  if (fxScan.key === key && fxScan.cv) return fxScan.cv;
+  const cv = document.createElement("canvas");
+  cv.width = 1;
+  cv.height = Math.max(4, Math.round(period * 8));
+  const c = cv.getContext("2d");
+  for (let y = 0; y < cv.height; y++) {
+    const s = 0.5 + 0.5 * Math.sin((y / period) * Math.PI * 2);
+    c.fillStyle = `rgba(0,0,0,${(0.45 * k * s).toFixed(3)})`;
+    c.fillRect(0, y, 1, 1);
+  }
+  fxScan = { key, cv };
+  return cv;
+}
+
+function applyRollFx(fx) {
+  const W = rollEl.width, H = rollEl.height;
+  if (W <= 0 || H <= 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const now = performance.now() / 1000;
+
+  // 1) 快照目前畫面
+  if (!fxBuf || fxBuf.width !== W || fxBuf.height !== H) {
+    fxBuf = document.createElement("canvas");
+    fxBuf.width = W; fxBuf.height = H;
+    fxBufCtx = fxBuf.getContext("2d");
+  }
+  fxBufCtx.setTransform(1, 0, 0, 1, 0, 0);
+  fxBufCtx.globalCompositeOperation = "source-over";
+  fxBufCtx.clearRect(0, 0, W, H);
+  fxBufCtx.drawImage(rollEl, 0, 0);
+
+  // 2) 色散先合成好（條塊位移才不會把它蓋掉）
+  const glitch = fx.glitch || 0;
+  const ca = (fx.chroma || 0) * 0.006 + glitch * 0.008;
+  const src = ca > 0.0001 ? fxSplitImage(fxBuf, ca * W) : fxBuf;
+
+  const ctx = rollCtx;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  // 震動／縮放會把內容推離邊緣，先鋪一層底色，邊邊才不會透出頁面背景
+  ctx.fillStyle = "#050810";
+  ctx.fillRect(0, 0, W, H);
+
+  // 3) 鏡頭縮放 + 畫面震動（整個畫面一起動）
+  const zoom = 1 + (fx.zoom || 0);
+  let sx = 0, sy = 0;
+  if (fx.shake) {
+    const amp = 0.010 * fx.shake * Math.min(W, H);
+    sx = (Math.sin(now * 47) * 0.6 + Math.sin(now * 108.1) * 0.4) * amp;
+    sy = (Math.cos(now * 79.9) * 0.6 + Math.cos(now * 145.7) * 0.4) * amp;
+  }
+  ctx.translate(W / 2 + sx, H / 2 + sy);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W / 2, -H / 2);
+
+  // 4) 反色 / 模糊（canvas filter，跟 shader 的順序一致）
+  // CSS blur(Npx) 是高斯模糊，比 shader 那個「±8 texel 五點取樣」強得多，
+  // 所以係數壓到 3.5 才跟遊戲裡的視覺量級接近。
+  const filters = [];
+  if (fx.invert) filters.push(`invert(${clamp(fx.invert, 0, 1).toFixed(3)})`);
+  if (fx.blur) filters.push(`blur(${(3.5 * dpr * clamp(fx.blur, 0, 1)).toFixed(2)}px)`);
+  ctx.filter = filters.length ? filters.join(" ") : "none";
+
+  // 5) 故障：水平條塊隨機位移
+  if (glitch > 0.001) {
+    const bands = 28;
+    const bh = H / bands;
+    const tick = Math.floor(now * 20);
+    for (let i = 0; i < bands; i++) {
+      const y = Math.floor(i * bh);
+      const hh = Math.ceil(bh) + 1;
+      const active = fxHash(i * 1.7 + tick * 3.1) >= 0.55;
+      const dx = active ? (fxHash(i + tick) - 0.5) * 0.09 * glitch * W : 0;
+      ctx.drawImage(src, 0, y, W, hh, dx, y, W, hh);
+    }
+  } else {
+    ctx.drawImage(src, 0, 0);
+  }
+  ctx.filter = "none";
+  ctx.restore();
+
+  // 6) 疊加層：掃描線 → 暗角 → 閃光（跟 shader 同順序）
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  if (fx.scanline) {
+    const tile = fxScanTile(clamp(fx.scanline, 0, 1), dpr);
+    const pat = ctx.createPattern(tile, "repeat");
+    if (pat) {
+      // 跟 shader 的 TIME * 90 一樣持續往下滾
+      const shift = (now * 90 * 1.7 / (Math.PI * 2)) * Math.max(2, 3 * dpr);
+      ctx.save();
+      ctx.translate(0, shift % tile.height);
+      ctx.fillStyle = pat;
+      ctx.fillRect(0, -tile.height, W, H + tile.height * 2);
+      ctx.restore();
+    }
+  }
+
+  if (fx.vignette) {
+    const R = Math.sqrt((W / 2) ** 2 + (H / 2) ** 2);
+    const g = ctx.createRadialGradient(W / 2, H / 2, R * 0.30, W / 2, H / 2, R);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, `rgba(0,0,0,${clamp(fx.vignette, 0, 1).toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  if (fx.flash) {
+    ctx.globalAlpha = clamp(fx.flash, 0, 1);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+function setFxNow(names, fx) {
+  const el = $("fxNow");
+  if (!el) return;
+  let text;
+  if (!fxPreviewOn) text = "關閉中：譜面顯示原始樣子。";
+  else if (!state.effects.length) text = "這張譜面還沒有特效事件。";
+  else if (!names.length) text = "預覽中：這個位置沒有特效。";
+  else text = "預覽中：" + names.map((k) => {
+    // zoom 的 strength 是「放大比例」（0.08 = 放大 8%），不是 0–100 的強度
+    const v = Math.round(fx[k] * 100);
+    return k === "zoom" ? `${FX_NAMES[k]} +${v}%` : `${FX_NAMES[k]} ${v}%`;
+  }).join("、");
+  if (text !== fxNowText) {
+    el.textContent = text;
+    fxNowText = text;
+  }
+}
+
+$("btnFxPreview").onclick = () => {
+  fxPreviewOn = !fxPreviewOn;
+  const btn = $("btnFxPreview");
+  btn.textContent = fxPreviewOn ? "■ 關閉特效預覽" : "▶ 套用特效預覽";
+  btn.classList.toggle("primary", fxPreviewOn);
+  fxNowText = "";
+  setFxNow([], {});
+  try { localStorage.setItem("reverb.fxPreview", fxPreviewOn ? "1" : "0"); } catch (e) {}
+  drawRoll();
+};
+
+try {
+  // 還原上次的開關狀態（不要用 .click()，那會在 FX_NAMES 還沒初始化時就重畫）
+  if (localStorage.getItem("reverb.fxPreview") === "1") {
+    fxPreviewOn = true;
+    $("btnFxPreview").textContent = "■ 關閉特效預覽";
+    $("btnFxPreview").classList.add("primary");
+  }
+} catch (e) {}
+
 
 // --- 互動 ---
 let drag = null;
+let winHover = null;
 
 function noteAt(x, y) {
   const lw = laneWidth();
@@ -706,6 +1976,17 @@ function noteAt(x, y) {
   return null;
 }
 
+/** 右側紫色標記（視窗事件）。命中範圍包含整個標記，方便拖曳。 */
+function winEventAt(x, y) {
+  if (x < rollW - SIDE + 2 || x > rollW - 2) return null;
+  let best = null, bestD = 1e9;
+  for (const ev of state.windows) {
+    const d = Math.abs(y - yOfBeat(ev.beat));
+    if (d <= 9 && d < bestD) { bestD = d; best = ev; }
+  }
+  return best;
+}
+
 rollEl.addEventListener("contextmenu", (e) => e.preventDefault());
 
 rollEl.addEventListener("mousedown", (e) => {
@@ -713,21 +1994,48 @@ rollEl.addEventListener("mousedown", (e) => {
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  const hit = noteAt(x, y);
+  // 右鍵：關鍵影格 → 開選單；視窗事件 → 直接刪除；音符 → 直接刪除
   if (e.button === 2) {
+    const kf = keyframeAt(x, y);
+    if (kf) { hideKfTip(); openKfMenu(kf, e.clientX, e.clientY); return; }
+    const wev = winEventAt(x, y);
+    if (wev) {
+      state.windows.splice(state.windows.indexOf(wev), 1);
+      if (winHover === wev) winHover = null;
+      markDirty();
+      refreshLists();
+      commit("刪除視窗事件");
+      return;
+    }
+    const hit = noteAt(x, y);
     if (hit) {
       state.notes.splice(state.notes.indexOf(hit), 1);
       if (selected === hit) selected = null;
       markDirty();
       refreshLists();
+      commit("刪除音符");
     }
     return;
   }
   if (e.button !== 0) return;
 
+  // 點在關鍵影格標記上時不要順手新增一顆音符。
+  // 否則「雙擊菱形標記開啟詳細資料」會順便塞進兩顆音符。
+  if (keyframeAt(x, y)) return;
+
+  // 視窗事件標記 → 拖曳調整拍數（水平位置不變，永遠貼在右側）
+  const wev = winEventAt(x, y);
+  if (wev) {
+    winHover = wev;
+    drag = { mode: "win", ev: wev, origBeat: wev.beat };
+    rollEl.style.cursor = "grabbing";
+    return;
+  }
+
+  const hit = noteAt(x, y);
   if (hit) {
     selected = hit;
-    drag = { mode: "move", note: hit };
+    drag = { mode: "move", note: hit, orig: { beat: hit.beat, lane: hit.lane } };
     return;
   }
 
@@ -743,10 +2051,16 @@ rollEl.addEventListener("mousedown", (e) => {
 });
 
 window.addEventListener("mousemove", (e) => {
-  if (!drag) return;
   const rect = rollEl.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
+  if (!drag) {
+    const inside = x >= 0 && y >= 0 && x <= rollW && y <= rollH;
+    const hov = inside ? winEventAt(x, y) : null;
+    winHover = hov;
+    rollEl.style.cursor = hov ? "grab" : "crosshair";
+    return;
+  }
   if (drag.mode === "move") {
     const b = Math.max(0, snapBeat(beatAtY(y)));
     const lane = laneAtX(x);
@@ -755,14 +2069,29 @@ window.addEventListener("mousemove", (e) => {
   } else if (drag.mode === "new") {
     const b = snapBeat(beatAtY(y));
     drag.note.len = Math.max(0, round(drag.startBeat - b, 4));
+  } else if (drag.mode === "win") {
+    drag.ev.beat = Math.max(0, round(snapBeat(beatAtY(y)), 4));
+    rollEl.style.cursor = "grabbing";
   }
   markDirty();
 });
 
 window.addEventListener("mouseup", () => {
   if (drag && drag.mode === "new" && drag.note.len === 0) drag.note.len = 0;
-  if (drag) refreshLists();
+  if (drag) {
+    refreshLists();
+    if (drag.mode === "new") {
+      commit("新增音符");
+    } else if (drag.mode === "win") {
+      if (drag.origBeat !== drag.ev.beat) commit("移動視窗事件");
+    } else if (drag.orig &&
+               (drag.orig.beat !== drag.note.beat || drag.orig.lane !== drag.note.lane)) {
+      // 只是點一下選取、沒有真的移動 → 不要浪費一格復原
+      commit("移動音符");
+    }
+  }
   drag = null;
+  rollEl.style.cursor = winHover ? "grab" : "crosshair";
 });
 
 // 滾輪：有音樂 → 移動音樂進度（基準線=音樂位置）；沒音樂 → 只捲動畫面
@@ -805,7 +2134,7 @@ rollEl.addEventListener("wheel", (e) => {
 // ===========================================================================
 const prevEl = $("preview");
 const prevCtx = prevEl.getContext("2d");
-let draft = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, rot: 0, scale: 1 }));
+let draft = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, rot: 0, scale: 1, alpha: 1 }));
 let prevDrag = null;
 let draftDirty = false;
 let selLane = -1;
@@ -844,7 +2173,7 @@ function laneStateAt(lane, beat) {
     for (const arr of laneKeysCache) arr.sort((a, b) => a.beat - b.beat);
   }
   const keys = laneKeysCache[lane] || [];
-  const def = { x: 0, y: 0, rot: 0, scale: 1 };
+  const def = { x: 0, y: 0, rot: 0, scale: 1, alpha: 1 };
   if (!keys.length) return def;
   if (beat <= keys[0].beat) return { ...def, ...keys[0] };
   const last = keys[keys.length - 1];
@@ -860,25 +2189,30 @@ function laneStateAt(lane, beat) {
     y: (a.y || 0) + ((b.y || 0) - (a.y || 0)) * f,
     rot: a.rot + (b.rot - a.rot) * f,
     scale: (a.scale ?? 1) + ((b.scale ?? 1) - (a.scale ?? 1)) * f,
+    alpha: (a.alpha ?? 1) + ((b.alpha ?? 1) - (a.alpha ?? 1)) * f,
   };
 }
 
 // 拍子沒變就不重算 draft
 let lastSyncBeat = -1e9;
 function syncDraftFromChart(force) {
-  if (prevDrag || draftDirty) return;
+  if (prevDrag) return;
+  // force 會蓋掉「有未儲存隊形」的保護：呼叫端明確要求重讀時就該重讀
+  if (!force && draftDirty) return;
   const b = currentBeat();
   if (!force && Math.abs(b - lastSyncBeat) < 0.001) return;
   lastSyncBeat = b;
   for (let i = 0; i < 4; i++) {
     const s = laneStateAt(i, b);
-    draft[i] = { x: s.x, y: s.y || 0, rot: s.rot, scale: s.scale ?? 1 };
+    draft[i] = { x: s.x, y: s.y || 0, rot: s.rot, scale: s.scale ?? 1, alpha: s.alpha ?? 1 };
   }
 }
 
 function drawPreview() {
   const dpr = window.devicePixelRatio || 1;
   const w = prevEl.clientWidth, h = prevEl.clientHeight;
+  // 右側欄收合（display:none）時尺寸是 0，直接跳過；展開後主迴圈會自己補畫。
+  if (w <= 0 || h <= 0) return;
   if (prevEl.width !== Math.round(w * dpr) || prevEl.height !== Math.round(h * dpr)) {
     prevEl.width = Math.round(w * dpr);
     prevEl.height = Math.round(h * dpr);
@@ -888,6 +2222,19 @@ function drawPreview() {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#060a12";
   ctx.fillRect(0, 0, w, h);
+
+  // 背景圖預覽（cover 填滿 + 壓暗，跟遊戲內的畫法一致）
+  if (bgImage) {
+    const iw = bgImage.naturalWidth || bgImage.width;
+    const ih = bgImage.naturalHeight || bgImage.height;
+    if (iw > 0 && ih > 0) {
+      const scale = Math.max(w / iw, h / ih);
+      const dw = iw * scale, dh = ih * scale;
+      ctx.drawImage(bgImage, (w - dw) * 0.5, (h - dh) * 0.5, dw, dh);
+      ctx.fillStyle = `rgba(0,0,0,${clamp(numOr(state.settings.background_dim, 0.45), 0, 1)})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
 
   const lw = previewLaneWidth(w);
   const judgeY = h * 0.84;
@@ -900,6 +2247,11 @@ function drawPreview() {
     ctx.rotate((st.rot * Math.PI) / 180);
     ctx.scale(st.scale, st.scale);
 
+    // 單軌透明度：連這一軌的音符一起淡。
+    // 選取中的那一條保留最低 45%，否則拉到 0 之後就再也點不到它。
+    const la = clamp(numOr(st.alpha, 1), 0, 1);
+    ctx.globalAlpha = i === selLane ? Math.max(la, 0.45) : la;
+
     ctx.fillStyle = "rgba(255,255,255,0.03)";
     ctx.fillRect(-lw / 2, -judgeY, lw, judgeY);
     ctx.strokeStyle = "rgba(255,255,255,0.08)";
@@ -907,6 +2259,11 @@ function drawPreview() {
     ctx.moveTo(-lw / 2, -judgeY); ctx.lineTo(-lw / 2, 0);
     ctx.moveTo(lw / 2, -judgeY); ctx.lineTo(lw / 2, 0);
     ctx.stroke();
+    if (i === selLane) {
+      ctx.strokeStyle = "rgba(56,189,248,0.6)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-lw / 2, -judgeY, lw, judgeY);
+    }
 
     // 判定點：玻璃球 + 赤道線（與遊戲內一致）
     ctx.strokeStyle = "rgba(255,255,255,0.72)";
@@ -1032,10 +2389,34 @@ function renderLaneFields() {
     row.appendChild(l);
   }
   box.appendChild(row);
+
+  // 單軌透明度：只影響這一條軌（底色、判定球、這一軌的音符），
+  // 不是整張譜面的設定。用滑桿是因為「拖到看得出來為止」比輸入數字直覺。
+  const opRow = document.createElement("div");
+  opRow.className = "opRow";
+  const opLabel = document.createElement("label");
+  opLabel.textContent = "透明度";
+  const opInput = document.createElement("input");
+  opInput.type = "range";
+  opInput.min = "0";
+  opInput.max = "100";
+  opInput.step = "1";
+  opInput.value = String(Math.round(clamp(numOr(draft[selLane].alpha, 1), 0, 1) * 100));
+  const opVal = document.createElement("span");
+  opVal.textContent = opInput.value + "%";
+  opInput.oninput = () => {
+    const v = clamp(numOr(opInput.value, 100) / 100, 0, 1);
+    draft[selLane].alpha = v;
+    opVal.textContent = Math.round(v * 100) + "%";
+    draftDirty = true;
+    markDirty();
+  };
+  opRow.append(opLabel, opInput, opVal);
+  box.appendChild(opRow);
 }
 
 function resetFormation() {
-  draft = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, rot: 0, scale: 1 }));
+  draft = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, rot: 0, scale: 1, alpha: 1 }));
   draftDirty = true;
   markDirty();
   renderLaneFields();
@@ -1055,6 +2436,7 @@ $("btnClearLanes").onclick = () => {
   invalidateLaneCache();
   markDirty();
   refreshLists();
+  commit("清空關鍵影格");
   setStatus("已清空所有軌道關鍵影格");
 };
 
@@ -1093,11 +2475,246 @@ $("btnBigEdit").onclick = openBigEdit;
 $("btnBigApply").onclick = closeBigEdit;
 
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !$("bigEdit").classList.contains("hidden")) {
-    e.preventDefault();
-    closeBigEdit();
+  if (e.key === "Escape") {
+    if (!$("validateModal").classList.contains("hidden")) {
+      e.preventDefault();
+      closeValidation();
+      return;
+    }
+    if (!$("chartModal").classList.contains("hidden")) {
+      e.preventDefault();
+      closeChartSettings();
+      return;
+    }
+    if (!$("kfModal").classList.contains("hidden")) {
+      e.preventDefault();
+      closeKfModal();
+      return;
+    }
+    closeKfMenu();
+    if (!$("bigEdit").classList.contains("hidden")) {
+      e.preventDefault();
+      closeBigEdit();
+    }
   }
 });
+
+// ===========================================================================
+// 關鍵影格檢視：懸停看資訊 / 雙擊編輯 / 右鍵選單
+// ===========================================================================
+let kfTarget = null;   // 詳細資料視窗正在編輯的那一格
+
+const signed = (v, n) => (v >= 0 ? "+" : "") + Number(v).toFixed(n);
+
+/** 滑鼠底下的關鍵影格（菱形標記）。命中範圍比圖形本身大一點，比較好點。 */
+function keyframeAt(x, y) {
+  const lw = laneWidth();
+  let best = null, bestD = 1e9;
+  for (const k of state.lanes) {
+    const ky = yOfBeat(k.beat);
+    if (Math.abs(ky - y) > 11) continue;
+    const kx = laneX(k.lane) + lw - 7;
+    const d = Math.hypot(x - kx, y - ky);
+    if (d <= 11 && d < bestD) { bestD = d; best = k; }
+  }
+  return best;
+}
+
+/** 同一軌的前一格 / 後一格，用來顯示「這一格持續多久」。 */
+function kfNeighbors(k) {
+  const same = state.lanes.filter((e) => e.lane === k.lane).sort((a, b) => a.beat - b.beat);
+  const i = same.indexOf(k);
+  return {
+    prev: i > 0 ? same[i - 1] : null,
+    next: i >= 0 && i < same.length - 1 ? same[i + 1] : null,
+  };
+}
+
+function kfRows(k) {
+  const { prev, next } = kfNeighbors(k);
+  const rows = [
+    ["小節", barBeat(k.beat)],
+    ["X", signed(k.x, 2) + " 軌寬"],
+    ["Y", signed(k.y || 0, 2) + " 軌寬"],
+    ["旋轉", Number(k.rot).toFixed(2) + "°"],
+    ["縮放", Number(k.scale ?? 1).toFixed(2) + "×"],
+    ["透明度", Math.round(clamp(numOr(k.alpha, 1), 0, 1) * 100) + "%"],
+    ["緩動", k.ease || "smooth"],
+  ];
+  if (prev) rows.push(["前格", round(k.beat - prev.beat, 3) + " 拍"]);
+  if (next) rows.push(["後格", round(next.beat - k.beat, 3) + " 拍"]);
+  return rows;
+}
+
+function showTipHTML(html, cx, cy) {
+  const tip = $("kfTip");
+  tip.innerHTML = html;
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = cx + 16, y = cy + 16;
+  if (x + w > window.innerWidth - 8) x = cx - w - 16;
+  if (y + h > window.innerHeight - 8) y = cy - h - 16;
+  tip.style.left = Math.max(6, x) + "px";
+  tip.style.top = Math.max(6, y) + "px";
+}
+
+function showKfTip(k, cx, cy) {
+  showTipHTML(
+    `<div class="kfHead">軌道 ${k.lane + 1} · 拍 ${round(k.beat, 3)}</div>` +
+    kfRows(k).map(([a, b]) => `<div class="kfRow"><span>${a}</span><span>${b}</span></div>`).join(""),
+    cx, cy
+  );
+}
+
+function hideKfTip() { $("kfTip").style.display = "none"; }
+
+function closeKfMenu() { $("kfMenu").style.display = "none"; }
+
+function openKfMenu(k, cx, cy) {
+  const m = $("kfMenu");
+  m.innerHTML = "";
+  const items = [
+    ["編輯詳細資料…", () => openKfModal(k)],
+    ["複製到播放位置", () => duplicateKf(k)],
+    ["跳到這一拍", () => seek(songTimeOfBeat(k.beat))],
+    ["sep"],
+    ["刪除這一格", () => deleteKf(k), "danger"],
+  ];
+  for (const it of items) {
+    const d = document.createElement("div");
+    if (it[0] === "sep") { d.className = "sep"; m.appendChild(d); continue; }
+    d.textContent = it[0];
+    if (it[2]) d.className = it[2];
+    d.onclick = () => { closeKfMenu(); it[1](); };
+    m.appendChild(d);
+  }
+  m.style.display = "block";
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.min(cx, window.innerWidth - w - 8) + "px";
+  m.style.top = Math.min(cy, window.innerHeight - h - 8) + "px";
+}
+
+function updateKfTimeLabel() {
+  const b = parseFloat($("kfBeat").value);
+  $("kfTime").value = Number.isFinite(b) ? barBeat(b) : "—";
+}
+
+function openKfModal(k) {
+  kfTarget = k;
+  hideKfTip();
+  closeKfMenu();
+  $("kfBeat").value = round(k.beat, 4);
+  $("kfLane").value = String(k.lane);
+  $("kfX").value = round(k.x, 3);
+  $("kfY").value = round(k.y || 0, 3);
+  $("kfRot").value = round(k.rot, 2);
+  $("kfScale").value = round(k.scale ?? 1, 3);
+  $("kfAlpha").value = Math.round(clamp(numOr(k.alpha, 1), 0, 1) * 100);
+  $("kfEase").value = k.ease || "smooth";
+  $("kfModalSub").textContent = `軌道 ${k.lane + 1} · 拍 ${round(k.beat, 3)} · 小節 ${barBeat(k.beat)}`;
+  updateKfTimeLabel();
+  $("kfModal").classList.remove("hidden");
+}
+
+function closeKfModal() {
+  $("kfModal").classList.add("hidden");
+  kfTarget = null;
+}
+
+function deleteKf(k) {
+  const i = state.lanes.indexOf(k);
+  if (i < 0) return;
+  state.lanes.splice(i, 1);
+  invalidateLaneCache();
+  markDirty();
+  refreshLists();
+  syncDraftFromChart(true);
+  commit("刪除關鍵影格");
+  setStatus(`已刪除 軌道 ${k.lane + 1} · 拍 ${round(k.beat, 3)} 的關鍵影格`);
+}
+
+function duplicateKf(k) {
+  const beat = round(Math.max(0, snapBeat(currentBeat())), 4);
+  if (state.lanes.some((e) => e.lane === k.lane && Math.abs(e.beat - beat) < 1e-6)) {
+    setStatus("播放位置上已經有同軌的關鍵影格");
+    return;
+  }
+  state.lanes.push({
+    beat, lane: k.lane, x: k.x, y: k.y || 0, rot: k.rot,
+    scale: k.scale ?? 1, alpha: k.alpha ?? 1, ease: k.ease || "smooth",
+  });
+  invalidateLaneCache();
+  markDirty();
+  refreshLists();
+  commit("複製關鍵影格");
+  setStatus(`已複製到拍 ${beat}`);
+}
+
+$("kfApply").onclick = () => {
+  if (!kfTarget) return;
+  const beat = Math.max(0, round(parseFloat($("kfBeat").value) || 0, 4));
+  const lane = clamp(parseInt($("kfLane").value, 10) || 0, 0, 3);
+  kfTarget.beat = beat;
+  kfTarget.lane = lane;
+  kfTarget.x = round(parseFloat($("kfX").value) || 0, 3);
+  kfTarget.y = round(parseFloat($("kfY").value) || 0, 3);
+  kfTarget.rot = round(parseFloat($("kfRot").value) || 0, 2);
+  kfTarget.scale = round(parseFloat($("kfScale").value) || 1, 3);
+  kfTarget.alpha = round(clamp(numOr($("kfAlpha").value, 100) / 100, 0, 1), 3);
+  kfTarget.ease = $("kfEase").value;
+  // 同一軌同一拍只能有一格，否則插值會拿到兩筆起點
+  state.lanes = state.lanes.filter(
+    (e) => e === kfTarget || !(e.lane === lane && Math.abs(e.beat - beat) < 1e-6)
+  );
+  invalidateLaneCache();
+  markDirty();
+  refreshLists();
+  syncDraftFromChart(true);
+  commit("編輯關鍵影格");
+  closeKfModal();
+  setStatus(`已更新 軌道 ${lane + 1} · 拍 ${beat}`);
+};
+
+$("kfCancel").onclick = closeKfModal;
+$("kfBeat").oninput = updateKfTimeLabel;
+$("kfDelete").onclick = () => {
+  const k = kfTarget;
+  closeKfModal();
+  if (k) deleteKf(k);
+};
+
+$("kfModal").addEventListener("mousedown", (e) => {
+  if (e.target === $("kfModal")) closeKfModal();
+});
+
+window.addEventListener("mousedown", (e) => {
+  if (!$("kfMenu").contains(e.target)) closeKfMenu();
+}, true);
+
+// 滑鼠移到菱形標記上 → 顯示完整資訊。
+// 只在「換到另一格」時才重畫浮層，否則每幀都重排 innerHTML 會讓畫面頓一下。
+let kfHover = null;
+rollEl.addEventListener("mousemove", (e) => {
+  if (drag) {
+    if (kfHover) { kfHover = null; hideKfTip(); }
+    return;
+  }
+  const rect = rollEl.getBoundingClientRect();
+  const k = keyframeAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (k === kfHover) return;
+  kfHover = k;
+  if (k) showKfTip(k, e.clientX, e.clientY);
+  else hideKfTip();
+});
+rollEl.addEventListener("mouseleave", () => { kfHover = null; hideKfTip(); });
+
+// 雙擊菱形標記 → 打開詳細資料
+rollEl.addEventListener("dblclick", (e) => {
+  const rect = rollEl.getBoundingClientRect();
+  const k = keyframeAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (k) { openKfModal(k); e.preventDefault(); }
+});
+
 
 // ===========================================================================
 // 清單 UI
@@ -1107,6 +2724,7 @@ function refreshLists() {
   waveCacheDirty = true;
   refreshLaneList();
   refreshWinList();
+  refreshFxList();
   refreshBpmList();
   $("statNotes").textContent = state.notes.length;
 }
@@ -1122,11 +2740,31 @@ function refreshLaneList() {
   for (const beat of beats) {
     const row = document.createElement("div");
     row.className = "item";
-    const xs = [0, 1, 2, 3].map((l) => {
-      const k = state.lanes.find((e) => e.lane === l && round(e.beat, 4) === beat);
-      return k ? (k.x >= 0 ? "+" : "") + k.x.toFixed(2) : "—";
-    });
+    const ks = [0, 1, 2, 3].map(
+      (l) => state.lanes.find((e) => e.lane === l && round(e.beat, 4) === beat)
+    );
+    const xs = ks.map((k) => (k ? (k.x >= 0 ? "+" : "") + k.x.toFixed(2) : "—"));
     row.innerHTML = `<span class="grow">拍 ${beat}　${xs.join(" / ")}</span>`;
+
+    // 懸停 → 顯示這一拍四條軌的完整數值（列表寬度放不下全部欄位）
+    row.onmouseenter = () => {
+      const lines = ks.map((k, l) => k
+        ? `<div class="kfRow"><span>軌 ${l + 1}</span><span>X ${signed(k.x, 2)} · Y ${signed(k.y || 0, 2)} · `
+          + `${Number(k.rot).toFixed(1)}° · ${Number(k.scale ?? 1).toFixed(2)}× · ${k.ease || "smooth"}</span></div>`
+        : `<div class="kfRow"><span>軌 ${l + 1}</span><span>—</span></div>`).join("");
+      const r = row.getBoundingClientRect();
+      showTipHTML(
+        `<div class="kfHead">拍 ${round(beat, 3)} · 小節 ${barBeat(beat)}</div>${lines}`,
+        r.right - 24, r.top
+      );
+    };
+    row.onmouseleave = hideKfTip;
+    // 雙擊 → 直接打開這一拍第一格有值的詳細資料
+    row.ondblclick = () => {
+      const k = ks.find(Boolean);
+      if (k) openKfModal(k);
+    };
+
     const del = document.createElement("span");
     del.className = "del";
     del.textContent = "✕";
@@ -1135,6 +2773,7 @@ function refreshLaneList() {
       state.lanes = state.lanes.filter((k) => round(k.beat, 4) !== beat);
       markDirty();
       refreshLists();
+      commit("刪除關鍵影格");
     };
     row.appendChild(del);
     row.onclick = () => {
@@ -1157,14 +2796,18 @@ function refreshWinList() {
   for (const ev of sorted) {
     const row = document.createElement("div");
     row.className = "item";
-    const extra = ev.type === "split" ? `×${ev.count || 2}`
-      : ev.type === "resize" ? `${ev.w}×${ev.h}`
-      : ev.type === "move" ? `(${ev.dx},${ev.dy})`
+    const extra = ev.type === "split"
+      ? `${ev.axis === "horizontal" ? "水平線" : "垂直線"} · ${ev.move === "same" ? "同向" : "相反"}`
+      : ev.type === "resize" ? `${ev.w}×${ev.h}（${ANCHOR_LABELS[ev.anchor] || ANCHOR_LABELS.center}）`
+      : ev.type === "move" ? `(${numOr(ev.dx, 0)}, ${numOr(ev.dy, 0)})`
       : ev.type === "shake" ? `${ev.strength}`
       : ev.type === "recenter" ? "回到中央"
       : ev.type === "borderless" ? (ev.on ? "無邊框" : "有邊框")
+      : ev.type === "ontop" ? (ev.on ? "置頂" : "取消置頂")
       : "";
-    row.innerHTML = `<span class="grow">拍 ${round(ev.beat, 3)} · ${ev.type} ${extra}</span>`;
+    const durBeats = numOr(ev.duration, 0);
+    const durTxt = durBeats > 0 ? ` · ${round(durBeats, 2)} 拍` : "";
+    row.innerHTML = `<span class="grow">拍 ${round(ev.beat, 3)} · ${ev.type} ${extra}${durTxt}</span>`;
     const del = document.createElement("span");
     del.className = "del";
     del.textContent = "✕";
@@ -1173,6 +2816,37 @@ function refreshWinList() {
       state.windows.splice(state.windows.indexOf(ev), 1);
       markDirty();
       refreshLists();
+      commit("刪除視窗事件");
+    };
+    row.appendChild(del);
+    row.onclick = () => seek(songTimeOfBeat(ev.beat));
+    box.appendChild(row);
+  }
+}
+
+function refreshFxList() {
+  const box = $("fxList");
+  box.innerHTML = "";
+  if (!state.effects.length) {
+    box.innerHTML = '<div class="hint">還沒有特效事件。</div>';
+    return;
+  }
+  const sorted = state.effects.slice().sort((a, b) => a.beat - b.beat);
+  for (const ev of sorted) {
+    const row = document.createElement("div");
+    row.className = "item";
+    const name = FX_NAMES[ev.type] || ev.type;
+    const durBeats = numOr(ev.duration, 0.7);
+    row.innerHTML = `<span class="grow">拍 ${round(ev.beat, 3)} · ${name} · ${round(durBeats, 2)} 拍 · 強度 ${Math.round(numOr(ev.strength, 1) * 100)}%</span>`;
+    const del = document.createElement("span");
+    del.className = "del";
+    del.textContent = "✕";
+    del.onclick = (e2) => {
+      e2.stopPropagation();
+      state.effects.splice(state.effects.indexOf(ev), 1);
+      markDirty();
+      refreshLists();
+      commit("刪除特效事件");
     };
     row.appendChild(del);
     row.onclick = () => seek(songTimeOfBeat(ev.beat));
@@ -1197,6 +2871,7 @@ function refreshBpmList() {
         state.timing.bpm_segments = state.timing.bpm_segments.filter((x) => x !== s);
         markDirty();
         refreshBpmList();
+        commit("刪除 BPM 段");
       };
       row.appendChild(del);
     }
@@ -1349,8 +3024,10 @@ function analyzeBpm() {
           state.timing.offset = round(r.phase, 3);
           $("inBpm").value = r.bpm.toFixed(2);
           $("inOffset").value = state.timing.offset;
+          waveCacheDirty = true;
           markDirty();
           refreshLists();
+          commit("套用 BPM 分析");
           setStatus(`已套用 ${r.bpm.toFixed(1)} BPM / offset ${r.phase.toFixed(3)}s`);
         };
         box.appendChild(row);
@@ -1378,8 +3055,10 @@ $("btnTap").onclick = () => {
     const bpm = Math.round((60000 / med) * 100) / 100;
     $("inBpm").value = bpm;
     state.timing.bpm_segments = [{ beat: 0, bpm }];
+    waveCacheDirty = true;
     markDirty();
     refreshLists();
+    commit("Tap Tempo");
     setStatus(`Tap Tempo：${bpm} BPM（${taps.length} 下）`);
   } else {
     setStatus(`Tap… 再 ${3 - taps.length} 下`);
@@ -1389,37 +3068,64 @@ $("btnTap").onclick = () => {
 // ===========================================================================
 // 表單綁定
 // ===========================================================================
-$("inTitle").oninput = (e) => { state.meta.title = e.target.value; markDirty(); };
-$("inArtist").oninput = (e) => { state.meta.artist = e.target.value; markDirty(); };
-$("inDiff").oninput = (e) => { state.meta.difficulty = e.target.value; markDirty(); };
-$("inLevel").oninput = (e) => { state.meta.level = parseInt(e.target.value, 10) || 1; markDirty(); };
-$("inAudio").oninput = (e) => { state.meta.audio = e.target.value; markDirty(); };
+// 文字欄位：邊打邊更新 state（畫面即時反應），離開欄位時才記一步復原。
+// 如果每個字都記一步，復原會變成「退一個字」，完全不能用。
+function bindMeta(id, key, cast, label) {
+  const el = $(id);
+  el.oninput = () => { state.meta[key] = cast(el.value); markDirty(); };
+  el.onchange = () => commit(label);
+}
+bindMeta("inTitle", "title", (v) => v, "編輯曲名");
+bindMeta("inArtist", "artist", (v) => v, "編輯作者");
+bindMeta("inDiff", "difficulty", (v) => v, "編輯難度");
+bindMeta("inLevel", "level", (v) => parseInt(v, 10) || 1, "編輯等級");
+bindMeta("inAudio", "audio", (v) => v, "編輯音檔路徑");
 
 $("inBpm").onchange = (e) => {
   const v = parseFloat(e.target.value);
   if (!(v > 0)) return;
-  state.timing.bpm_segments = [{ beat: 0, bpm: v }];
+  // 只改第一段的 BPM，不要清掉後面的變速段
+  const segs = bpmSegments().map((s) => ({ ...s }));
+  segs[0].bpm = v;
+  state.timing.bpm_segments = segs;
   markDirty();
   refreshLists();
+  commit("編輯 BPM");
 };
 $("inOffset").onchange = (e) => {
   state.timing.offset = parseFloat(e.target.value) || 0;
   waveCacheDirty = true;
   markDirty();
+  commit("編輯 Offset");
 };
 $("btnAddBpm").onclick = () => {
   const bpm = parseFloat($("inBpm").value) || 120;
   const beat = round(Math.max(0, snapBeat(currentBeat())), 4);
+  // 同一個拍只能有一段 BPM，否則換算時間會拿到兩個起點
+  state.timing.bpm_segments = state.timing.bpm_segments.filter(
+    (s) => Math.abs(numOr(s.beat, 0) - beat) > 1e-6
+  );
   state.timing.bpm_segments.push({ beat, bpm });
   state.timing.bpm_segments.sort((a, b) => a.beat - b.beat);
   markDirty();
   refreshLists();
+  commit("新增 BPM 段");
   setStatus(`已在拍 ${beat} 插入 ${bpm} BPM`);
 };
 $("inZoom").oninput = (e) => { pxPerBeat = parseFloat(e.target.value); };
 $("btnPlay").onclick = togglePlay;
 $("btnStop").onclick = stop;
-$("btnAnalyze").onclick = analyzeBpm;
+$("selRate").onchange = (e) => setRate(parseFloat(e.target.value));
+
+// 還原上次的倍速（只還原數值，不觸發 setStatus）
+try {
+  const savedRate = parseFloat(localStorage.getItem("reverb.rate"));
+  if (Number.isFinite(savedRate) && savedRate >= 0.25 && savedRate <= 2) {
+    audio.rate = savedRate;
+    $("selRate").value = String(savedRate);
+  }
+} catch (e) {}
+$("btnAnalyzeBpm").onclick = analyzeBpm;
 
 $("btnAddLane").onclick = () => {
   const beat = round(Math.max(0, snapBeat(currentBeat())), 4);
@@ -1429,25 +3135,281 @@ $("btnAddLane").onclick = () => {
       beat, lane: i,
       x: round(draft[i].x, 3), y: round(draft[i].y || 0, 3),
       rot: round(draft[i].rot, 2), scale: round(draft[i].scale ?? 1, 3),
+      alpha: round(clamp(numOr(draft[i].alpha, 1), 0, 1), 3),
       ease: "smooth",
     });
   }
   draftDirty = false;
   markDirty();
   refreshLists();
+  commit("新增隊形");
   setStatus(`已新增隊形 @ 拍 ${beat}`);
 };
 
+// --- 譜面設置（右上角 ⚙ / 左欄按鈕）---
+function openChartSettings() {
+  // 先顯示再同步：背景預覽畫布在 hidden 時量不到寬高，會畫不出來。
+  $("chartModal").classList.remove("hidden");
+  syncChartSettingsForm();
+  requestAnimationFrame(drawBgPreview);
+}
+
+function closeChartSettings() {
+  $("chartModal").classList.add("hidden");
+}
+
+$("btnChartSettings").onclick = openChartSettings;
+$("btnChartSettings2").onclick = openChartSettings;
+$("btnChartDone").onclick = closeChartSettings;
+$("chartModal").addEventListener("mousedown", (e) => {
+  if (e.target === $("chartModal")) closeChartSettings();
+});
+
+$("chkSafeArea").onchange = (e) => {
+  uiState.safeArea = e.target.checked;
+  saveUiState();
+  drawBgPreview();
+};
+
+function updateChartSettingsSummary() {
+  const s = state.settings;
+  const style = { any: "不限樣式", bar: "長條", orb: "圓球" }[s.note_style] || "不限樣式";
+  const win = (numOr(s.win_w, 0) > 0 && numOr(s.win_h, 0) > 0)
+    ? `${Math.round(s.win_w)}×${Math.round(s.win_h)}${s.win_centered !== false ? " 置中" : ""}`
+    : "沿用目前視窗";
+  $("chartSettingsSummary").innerHTML =
+    `音符：${style} · ${Number(numOr(s.note_scale, 1)).toFixed(2)}×<br>` +
+    `視窗：${win} · 全螢幕${s.fullscreen === "block" ? "禁止" : "允許"}` +
+    `${s.borderless ? " · 無邊框" : ""}<br>` +
+    `背景：${s.background ? fileNameOf(s.background) : "純黑"}`;
+  drawBgPreview();
+}
+
+function syncChartSettingsForm() {
+  const s = state.settings;
+  // 背景路徑被復原 / 載入譜面換掉時，上一個預覽圖就不再代表目前設定
+  if ((s.background || "") !== bgPreviewPath) {
+    bgPreviewUrl = "";
+    bgPreviewPath = s.background || "";
+    bgImage = null;
+  }
+  $("selNoteStyle").value = s.note_style || "any";
+  $("inNoteScale").value = numOr(s.note_scale, 1);
+  $("selFullscreen").value = s.fullscreen === "block" ? "block" : "allow";
+  $("chkBorderless").checked = s.borderless !== false;
+  $("inWinW").value = Math.round(clamp(numOr(s.win_w, 0), 0, 7680));
+  $("inWinH").value = Math.round(clamp(numOr(s.win_h, 0), 0, 4320));
+  $("inWinX").value = Math.round(numOr(s.win_x, 0));
+  $("inWinY").value = Math.round(numOr(s.win_y, 0));
+  $("chkWinCenter").checked = s.win_centered !== false;
+  $("chkWinCenter").disabled = false;
+  $("inBackground").value = s.background || "";
+  const dim = Math.round(clamp(numOr(s.background_dim, 0.45), 0, 1) * 100);
+  $("inBgDim").value = dim;
+  $("bgDimVal").textContent = dim + "%";
+  $("chkSafeArea").checked = uiState.safeArea !== false;
+  updateChartSettingsSummary();
+  drawBgPreview();
+}
+
+$("selNoteStyle").onchange = (e) => {
+  state.settings.note_style = e.target.value;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：音符樣式");
+};
+$("inNoteScale").onchange = (e) => {
+  state.settings.note_scale = clamp(parseFloat(e.target.value) || 1, 0.4, 2.5);
+  e.target.value = state.settings.note_scale;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：音符大小");
+};
+$("selFullscreen").onchange = (e) => {
+  state.settings.fullscreen = e.target.value === "block" ? "block" : "allow";
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：全螢幕");
+};
+$("chkBorderless").onchange = (e) => {
+  state.settings.borderless = e.target.checked;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：無邊框");
+};
+
+$("inWinW").onchange = (e) => {
+  state.settings.win_w = clamp(Math.round(numOr(e.target.value, 0)), 0, 7680);
+  e.target.value = state.settings.win_w;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：視窗寬度");
+};
+$("inWinH").onchange = (e) => {
+  state.settings.win_h = clamp(Math.round(numOr(e.target.value, 0)), 0, 4320);
+  e.target.value = state.settings.win_h;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：視窗高度");
+};
+$("inWinX").onchange = (e) => {
+  state.settings.win_x = Math.round(numOr(e.target.value, 0));
+  e.target.value = state.settings.win_x;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：視窗 X");
+};
+$("inWinY").onchange = (e) => {
+  state.settings.win_y = Math.round(numOr(e.target.value, 0));
+  e.target.value = state.settings.win_y;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：視窗 Y");
+};
+$("chkWinCenter").onchange = (e) => {
+  state.settings.win_centered = e.target.checked;
+  markDirty();
+  updateChartSettingsSummary();
+  commit("譜面設置：視窗置中");
+};
+
+$("inBackground").onchange = (e) => {
+  state.settings.background = e.target.value.trim();
+  bgPreviewUrl = "";
+  bgPreviewPath = state.settings.background;
+  bgImage = null;
+  syncChartSettingsForm();
+  markDirty();
+  commit("譜面設置：背景路徑");
+};
+$("btnPickBg").onclick = () => $("fileBg").click();
+$("fileBg").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  // 只寫路徑，不把圖片塞進 JSON。預覽用 object URL。
+  state.settings.background = "res://assets/backgrounds/" + file.name;
+  $("inBackground").value = state.settings.background;
+  setBgPreview(URL.createObjectURL(file), state.settings.background);
+  markDirty();
+  commit("譜面設置：背景圖");
+  setStatus(`背景設為 ${file.name} — 記得把檔案放進 assets/backgrounds/`);
+  e.target.value = "";
+};
+$("btnClearBg").onclick = () => {
+  state.settings.background = "";
+  $("inBackground").value = "";
+  setBgPreview("", "");
+  markDirty();
+  commit("譜面設置：清除背景");
+  setStatus("背景已清除（純黑）");
+};
+$("inBgDim").oninput = (e) => {
+  state.settings.background_dim = clamp(parseInt(e.target.value, 10) / 100, 0, 1);
+  $("bgDimVal").textContent = e.target.value + "%";
+  markDirty();
+  drawPreview();
+};
+$("inBgDim").onchange = () => commit("譜面設置：背景亮度");
+
+// 初始位置 = 第 0 拍的四個關鍵影格。用既有的關鍵影格機制實作，
+// 遊戲端不需要為「初始隊形」多寫任何程式碼。
+$("btnInitForm").onclick = () => {
+  state.lanes = state.lanes.filter((k) => round(k.beat, 4) !== 0);
+  for (let i = 0; i < 4; i++) {
+    state.lanes.push({
+      beat: 0, lane: i,
+      x: round(draft[i].x, 3), y: round(draft[i].y || 0, 3),
+      rot: round(draft[i].rot, 2), scale: round(draft[i].scale ?? 1, 3),
+      alpha: round(clamp(numOr(draft[i].alpha, 1), 0, 1), 3),
+      ease: "smooth",
+    });
+  }
+  invalidateLaneCache();
+  markDirty();
+  refreshLists();
+  commit("設定初始位置");
+  setStatus("已把目前隊形寫成第 0 拍的初始位置");
+};
+
+$("btnClearInit").onclick = () => {
+  const before = state.lanes.length;
+  state.lanes = state.lanes.filter((k) => round(k.beat, 4) !== 0);
+  if (state.lanes.length === before) {
+    setStatus("沒有初始位置（第 0 拍沒有關鍵影格）");
+    return;
+  }
+  invalidateLaneCache();
+  markDirty();
+  refreshLists();
+  commit("清除初始位置");
+  setStatus("已清除初始位置");
+};
+
 // 視窗事件表單
+// duration 一律以「拍」儲存；匯出時依該拍的 BPM 換算成秒。
 const WIN_FIELDS = {
-  move: [["dx", "水平位移（螢幕比例）", 0.02], ["dy", "垂直位移", 0], ["duration", "秒", 0.4]],
-  resize: [["w", "寬度倍率", 0.8], ["h", "高度倍率", 0.85], ["duration", "秒", 0.5]],
-  shake: [["strength", "強度 px", 10], ["duration", "秒", 0.4]],
-  split: [["count", "視窗數 2–3", 2]],
+  move: [["dx", "水平位移（螢幕比例）", 0.02], ["dy", "垂直位移", 0], ["duration", "動畫拍數", 1]],
+  resize: [["w", "寬度倍率", 0.8], ["h", "高度倍率", 0.85], ["anchor", "縮放錨點", "center"], ["duration", "動畫拍數", 1]],
+  shake: [["strength", "強度 px", 10], ["duration", "動畫拍數", 0.5]],
+  split: [["axis", "分割方向", "vertical"], ["move", "移動方式", "mirror"]],
   merge: [],
-  recenter: [["duration", "動畫秒數", 0.45]],
+  recenter: [["duration", "動畫拍數", 1]],
   ontop: [["on", "1 = 置頂 / 0 = 取消", 1]],
   borderless: [["on", "1 = 無邊框 / 0 = 有邊框", 1]],
+};
+
+const ANCHOR_OPTIONS = [
+  ["center", "中心對稱（預設）"],
+  ["topleft", "左上角不動"],
+  ["topright", "右上角不動"],
+  ["bottomleft", "左下角不動"],
+  ["bottomright", "右下角不動"],
+];
+const ANCHOR_LABELS = Object.fromEntries(ANCHOR_OPTIONS);
+
+const AXIS_OPTIONS = [
+  ["vertical", "垂直線（左 / 右兩塊）"],
+  ["horizontal", "水平線（上 / 下兩塊）"],
+];
+const AXIS_LABELS = Object.fromEntries(AXIS_OPTIONS);
+
+const SPLIT_MOVE_OPTIONS = [
+  ["mirror", "相反方向（以中線對稱）"],
+  ["same", "相同方向（整組平移）"],
+];
+const SPLIT_MOVE_LABELS = Object.fromEntries(SPLIT_MOVE_OPTIONS);
+
+// 下拉式欄位（其他欄位都是數字輸入）
+const SELECT_OPTIONS = {
+  anchor: ANCHOR_OPTIONS,
+  axis: AXIS_OPTIONS,
+  move: SPLIT_MOVE_OPTIONS,
+};
+
+// 特效事件：名稱、預設值、可調參數
+// duration 以「拍」為單位（約等於 120 BPM 下的秒數 × 2），匯出時換算回秒。
+const FX_NAMES = {
+  flash: "白色閃光",
+  glitch: "故障",
+  invert: "反色",
+  blur: "模糊",
+  chroma: "色散",
+  scanline: "掃描線",
+  vignette: "暗角",
+  shake: "畫面震動",
+  zoom: "鏡頭縮放",
+};
+
+const FX_DEFAULTS = {
+  flash: { duration: 0.7, strength: 1 },
+  glitch: { duration: 1.1, strength: 1 },
+  invert: { duration: 0.6, strength: 1 },
+  blur: { duration: 1.2, strength: 0.9 },
+  chroma: { duration: 1.0, strength: 1 },
+  scanline: { duration: 1.8, strength: 0.9 },
+  vignette: { duration: 1.8, strength: 1 },
+  shake: { duration: 0.7, strength: 1 },
+  zoom: { duration: 0.8, strength: 0.08 },
 };
 
 function renderWinParams() {
@@ -1457,6 +3419,21 @@ function renderWinParams() {
   for (const [key, label, def] of WIN_FIELDS[type]) {
     const l = document.createElement("label");
     l.textContent = label;
+    const opts = SELECT_OPTIONS[key];
+    if (opts) {
+      const sel = document.createElement("select");
+      sel.dataset.key = key;
+      for (const [value, text] of opts) {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = text;
+        sel.appendChild(opt);
+      }
+      sel.value = def;
+      l.appendChild(sel);
+      box.appendChild(l);
+      continue;
+    }
     const inp = document.createElement("input");
     inp.type = "number";
     inp.step = "any";
@@ -1465,28 +3442,114 @@ function renderWinParams() {
     l.appendChild(inp);
     box.appendChild(l);
   }
+  if (type === "resize") {
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.style.marginTop = "4px";
+    hint.textContent = "錨點 = 哪個角不動。中心對稱是左右、上下同時伸縮；選左上角就只往右下長大。倍率相對初始視窗大小（1 = 不變）。縮放只會裁切 / 露出外圍，遊戲 UI 不會跟著放大縮小。";
+    box.appendChild(hint);
+  }
+  if (type === "split") {
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.style.marginTop = "4px";
+    hint.textContent = "固定分成兩塊。垂直線 = 左 / 右，水平線 = 上 / 下。「移動方式」決定移動其中一塊時另一塊怎麼走：相反方向 = 以分割線為鏡射軸，相同方向 = 兩塊一起平移。分割期間的「重置位置」會讓合併後的整體回到螢幕中央。";
+    box.appendChild(hint);
+  }
+}
+
+function renderFxParams() {
+  const type = $("selFxType").value;
+  const box = $("fxParams");
+  box.innerHTML = "";
+  const d = FX_DEFAULTS[type] || { duration: 0.7, strength: 1 };
+  const fields = [
+    ["duration", "持續拍數", d.duration],
+    ["strength", "強度 0–1", d.strength],
+  ];
+  for (const [key, label, def] of fields) {
+    const l = document.createElement("label");
+    l.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.step = "0.01";
+    inp.min = "0";
+    inp.value = def;
+    inp.dataset.key = key;
+    l.appendChild(inp);
+    box.appendChild(l);
+  }
 }
 
 $("selWinType").onchange = renderWinParams;
+$("selFxType").onchange = renderFxParams;
+
+$("btnAddFx").onclick = () => {
+  const type = $("selFxType").value;
+  const beat = round(Math.max(0, snapBeat(currentBeat())), 4);
+  const ev = { beat, type };
+  for (const inp of $("fxParams").querySelectorAll("input")) {
+    ev[inp.dataset.key] = parseFloat(inp.value);
+  }
+  // 事件在編輯器內以「拍」儲存，匯出時才換算成秒
+  ev.duration = Math.max(numOr(ev.duration, 0.7), 0.05);
+  ev.strength = clamp(numOr(ev.strength, 1), 0, 1);
+  state.effects.push(ev);
+  markDirty();
+  refreshLists();
+  commit("新增特效事件");
+  setStatus(`已新增特效：${FX_NAMES[type] || type}`);
+};
+
+// 采音輔助
+$("chkDrum").onchange = (e) => {
+  onset.showDrum = e.target.checked;
+  if (onset.showDrum && !onset.ready) setStatus("請先按「分析目前音樂」");
+};
+$("chkMelody").onchange = (e) => {
+  onset.showMelody = e.target.checked;
+  if (onset.showMelody && !onset.ready) setStatus("請先按「分析目前音樂」");
+};
+$("inOnsetSens").oninput = (e) => {
+  onset.sens = clamp(parseInt(e.target.value, 10) / 100, 0.1, 0.9);
+  $("onsetSensVal").textContent = Math.round(onset.sens * 100) + "%";
+  if (onset.ready) {
+    $("onsetInfo").textContent =
+      `鼓點 ${onset.drum.length} 個 · 旋律 ${onset.melody.length} 個（靈敏度 ${Math.round(onset.sens * 100)}%）`;
+  }
+};
+$("btnAnalyzeOnset").onclick = () => { analyzeOnsets(); };
 
 $("btnAddWin").onclick = () => {
   const type = $("selWinType").value;
   const ev = { beat: round(Math.max(0, snapBeat(currentBeat())), 4), type };
-  for (const inp of $("winParams").querySelectorAll("input")) {
-    ev[inp.dataset.key] = parseFloat(inp.value);
+  for (const [key, , def] of WIN_FIELDS[type]) {
+    const el = $("winParams").querySelector(`[data-key="${key}"]`);
+    if (!el) continue;
+    if (SELECT_OPTIONS[key]) {
+      ev[key] = el.value || def;
+    } else {
+      const v = parseFloat(el.value);
+      ev[key] = Number.isFinite(v) ? v : def;
+    }
   }
-  if (type === "split") ev.count = clamp(Math.round(ev.count || 2), 2, 3);
+  // 事件在編輯器內以「拍」儲存，匯出時才換算成秒
+  if (ev.duration !== undefined) {
+    ev.duration = Math.max(numOr(ev.duration, 1), 0.01);
+  }
   state.windows.push(ev);
   markDirty();
   refreshLists();
+  commit("新增視窗事件");
   setStatus(`已新增視窗事件 ${type}`);
 };
 
 // ===========================================================================
 // 匯入 / 匯出
 // ===========================================================================
-function exportChart() {
-  const chart = {
+// 目前狀態 → 遊戲讀的譜面格式。編輯器內長度以「拍」儲存，這裡換算成秒。
+function buildChartData() {
+  return {
     format: "reverb-chart",
     version: 1,
     meta: {
@@ -1500,6 +3563,23 @@ function exportChart() {
       offset: round(state.timing.offset, 4),
       bpm_segments: bpmSegments().map((s) => ({ beat: round(s.beat, 4), bpm: s.bpm })),
     },
+    settings: {
+      note_style: state.settings.note_style,
+      note_scale: round(state.settings.note_scale, 2),
+      borderless: !!state.settings.borderless,
+      fullscreen: state.settings.fullscreen,
+      // 只存路徑；空字串 = 純黑
+      background: state.settings.background || "",
+      background_dim: round(clamp(numOr(state.settings.background_dim, 0.45), 0, 1), 2),
+      // 視窗初始狀態：寬或高 0 = 不指定（沿用玩家視窗）
+      window: {
+        width: Math.max(0, Math.round(numOr(state.settings.win_w, 0))),
+        height: Math.max(0, Math.round(numOr(state.settings.win_h, 0))),
+        x: Math.round(numOr(state.settings.win_x, 0)),
+        y: Math.round(numOr(state.settings.win_y, 0)),
+        centered: state.settings.win_centered !== false,
+      },
+    },
     notes: state.notes
       .slice()
       .sort((a, b) => a.beat - b.beat || a.lane - b.lane)
@@ -1511,6 +3591,7 @@ function exportChart() {
         beat: round(k.beat, 4), lane: k.lane,
         x: round(k.x, 3), y: round(k.y || 0, 3),
         rot: round(k.rot, 2), scale: round(k.scale ?? 1, 3),
+        alpha: round(clamp(numOr(k.alpha, 1), 0, 1), 3),
         ease: k.ease || "smooth",
       })),
     windows: state.windows
@@ -1519,11 +3600,342 @@ function exportChart() {
       .map((w) => {
         const o = { beat: round(w.beat, 4), type: w.type };
         for (const k of Object.keys(w)) {
-          if (k !== "beat" && k !== "type") o[k] = w[k];
+          if (k === "beat" || k === "type") continue;
+          // 動畫長度：拍 → 秒
+          o[k] = k === "duration"
+            ? round(Math.max(secondsOfBeats(numOr(w.beat, 0), numOr(w[k], 0.5)), 0.01), 3)
+            : w[k];
         }
         return o;
       }),
+    effects: state.effects
+      .slice()
+      .sort((a, b) => a.beat - b.beat)
+      .map((e) => ({
+        beat: round(e.beat, 4),
+        type: e.type,
+        duration: round(Math.max(secondsOfBeats(e.beat, numOr(e.duration, 0.7)), 0.05), 3),
+        strength: round(clamp(numOr(e.strength, 1), 0, 1), 2),
+      })),
   };
+}
+
+// ===========================================================================
+// 譜面驗證
+// ===========================================================================
+// 匯出前先抓「遊戲實際上會出錯」的情況：
+//   * 同拍同軌重複、同軌長條重疊
+//   * 音符 / 事件超出音樂長度
+//   * 視窗事件同時搶同一種屬性（例如兩個 resize 動畫重疊）
+//   * 格式欄位明顯壞掉（軌道超出 0–3、BPM <= 0…）
+// 錯誤會阻止匯出；提醒只顯示，不擋。
+function fmtBeat(v) {
+  return Number.isFinite(Number(v)) ? round(Number(v), 3).toString() : "?";
+}
+function fmtTime(sec) {
+  const s = Math.max(0, Number(sec) || 0);
+  return `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, "0")}`;
+}
+
+function validateChart() {
+  const errors = [];
+  const warnings = [];
+  const err = (m) => errors.push(m);
+  const warn = (m) => warnings.push(m);
+
+  const hasAudio = !!(audio.buffer && audio.buffer.duration > 0);
+  const totalSec = hasAudio ? audioDuration() : 0;
+  const eps = 1e-4;
+
+  if (!state.meta.audio && !audio.name) {
+    err("沒有音檔路徑（meta.audio），遊戲無法載入音樂。");
+  } else if (!state.meta.audio) {
+    warn("meta.audio 是空的；匯出時會自動填入目前載入的音檔路徑。");
+  }
+  if (!String(state.meta.title || "").trim()) warn("曲名是空的，匯出後會顯示 Untitled。");
+  if (!state.notes.length) warn("譜面沒有任何音符。");
+
+  // --- 音符 ---
+  const seenNotes = new Map();
+  const laneNotes = [[], [], [], []];
+  state.notes.forEach((n, i) => {
+    const beat = Number(n.beat);
+    const lane = Number(n.lane);
+    const len = Number(n.len) || 0;
+    const tag = `音符 #${i + 1}`;
+    if (!Number.isFinite(beat) || beat < 0) {
+      err(`${tag}：拍數不合法（${n.beat}），必須 >= 0。`);
+      return;
+    }
+    if (!Number.isInteger(lane) || lane < 0 || lane > 3) {
+      err(`${tag}：軌道必須是 0–3（目前 ${n.lane}）。`);
+      return;
+    }
+    if (len < -eps) err(`${tag}（拍 ${fmtBeat(beat)}）：長度不能是負數。`);
+    const key = `${round(beat, 4)}:${lane}`;
+    // 先統計，最後每個「同拍同軌」只報一則，避免 40 顆重複洗版
+    const hit = seenNotes.get(key);
+    if (hit) hit.count += 1;
+    else seenNotes.set(key, { beat, lane, count: 1 });
+    if (hasAudio) {
+      const startT = songTimeOfBeat(beat);
+      const endT = songTimeOfBeat(beat + Math.max(len, 0));
+      if (endT > totalSec + 0.02) {
+        err(`${tag}（拍 ${fmtBeat(beat)} 第 ${lane + 1} 軌）超出音樂長度：${fmtTime(endT)} > ${fmtTime(totalSec)}。`);
+      }
+      if (startT < -0.02) {
+        warn(`${tag}（拍 ${fmtBeat(beat)}）在音樂開始之前，開場會來不及看到。`);
+      }
+    }
+    laneNotes[lane].push({ beat, end: beat + Math.max(len, 0), idx: i });
+  });
+
+  for (const { beat, lane, count } of seenNotes.values()) {
+    if (count > 1) {
+      err(`拍 ${fmtBeat(beat)} 第 ${lane + 1} 軌有 ${count} 個重複音符（同拍同軌）。`);
+    }
+  }
+
+  // 同一軌的長條重疊（結尾相接不算重疊）
+  for (let lane = 0; lane < 4; lane++) {
+    const arr = laneNotes[lane].sort((a, b) => a.beat - b.beat || a.end - b.end);
+    let active = null;
+    for (const cur of arr) {
+      if (active && cur.beat < active.end - eps && Math.abs(cur.beat - active.beat) > eps) {
+        err(`第 ${lane + 1} 軌的長條重疊：拍 ${fmtBeat(active.beat)} 與拍 ${fmtBeat(cur.beat)}。`);
+      }
+      if (!active || cur.end > active.end) active = cur;
+    }
+  }
+
+  // 沒有載入音樂時只能提醒，不能假裝檢查過長度
+  if (!hasAudio) {
+    warn("尚未載入音樂，無法檢查音符 / 事件是否超出歌曲長度。");
+  } else {
+    // 最後一拍（給長度顯示用）
+    const lastBeat = beatAtSongTime(totalSec);
+    if (lastBeat <= 0.01) warn("音樂長度推算為 0 拍，請確認 BPM 與 offset。");
+  }
+
+  // --- 軌道關鍵影格 ---
+  const seenKeys = new Set();
+  state.lanes.forEach((k, i) => {
+    const beat = Number(k.beat);
+    const lane = Number(k.lane);
+    if (!Number.isFinite(beat) || beat < 0) {
+      err(`關鍵影格 #${i + 1}：拍數不合法（${k.beat}）。`);
+      return;
+    }
+    if (!Number.isInteger(lane) || lane < 0 || lane > 3) {
+      err(`關鍵影格 #${i + 1}：軌道必須是 0–3（目前 ${k.lane}）。`);
+      return;
+    }
+    const key = `${round(beat, 4)}:${lane}`;
+    if (seenKeys.has(key)) {
+      warn(`拍 ${fmtBeat(beat)} 第 ${lane + 1} 軌有重複關鍵影格，遊戲只會取其中一個。`);
+    } else {
+      seenKeys.add(key);
+    }
+    if (hasAudio && songTimeOfBeat(beat) > totalSec + 0.02) {
+      warn(`關鍵影格（拍 ${fmtBeat(beat)}）在音樂結束之後，播放時不會生效。`);
+    }
+    if (numOr(k.scale, 1) <= 0) warn(`拍 ${fmtBeat(beat)} 第 ${lane + 1} 軌的縮放 <= 0。`);
+  });
+
+  // --- 視窗事件 ---
+  const winTypes = new Set(Object.keys(WIN_FIELDS));
+  const groups = new Map();
+  const groupOf = (type) => {
+    if (type === "move" || type === "recenter") return "pos";
+    if (type === "resize") return "size";
+    if (type === "split" || type === "merge") return "split";
+    if (type === "ontop") return "ontop";
+    if (type === "borderless") return "borderless";
+    if (type === "shake") return "shake";
+    return "";
+  };
+  const groupLabel = {
+    pos: "位置", size: "大小", split: "分割", ontop: "置頂",
+    borderless: "邊框", shake: "震動",
+  };
+  state.windows.forEach((ev, i) => {
+    const beat = Number(ev.beat);
+    const type = String(ev.type || "");
+    const tag = `視窗事件 #${i + 1}`;
+    if (!Number.isFinite(beat) || beat < 0) {
+      err(`${tag}：拍數不合法（${ev.beat}）。`);
+      return;
+    }
+    if (!winTypes.has(type)) {
+      err(`${tag}：未知的 type「${type}」。`);
+      return;
+    }
+    if (hasAudio && songTimeOfBeat(beat) > totalSec + 0.02) {
+      err(`${tag}（拍 ${fmtBeat(beat)} ${type}）超出音樂長度，永遠不會播放。`);
+    }
+    const dur = numOr(ev.duration, 0);
+    if (["move", "resize", "recenter", "shake"].includes(type) && dur <= 0.01) {
+      warn(`${tag}（拍 ${fmtBeat(beat)} ${type}）動畫拍數 <= 0，會變成瞬間跳變。`);
+    }
+    if (type === "resize") {
+      const w = numOr(ev.w, 1), h = numOr(ev.h, 1);
+      if (w < 0.1 || h < 0.1 || w > 5 || h > 5) {
+        warn(`${tag}（拍 ${fmtBeat(beat)}）：縮放倍率 ${w}×${h} 很極端，畫面可能完全看不到。`);
+      }
+      if (ev.anchor !== undefined && !ANCHOR_LABELS[ev.anchor]) {
+        warn(`${tag}（拍 ${fmtBeat(beat)}）：錨點「${ev.anchor}」無效，遊戲會用中心對稱。`);
+      }
+    }
+    if (type === "split") {
+      if (ev.axis !== undefined && !AXIS_LABELS[ev.axis]) {
+        warn(`${tag}（拍 ${fmtBeat(beat)}）：分割方向「${ev.axis}」無效，遊戲會用垂直線。`);
+      }
+      if (ev.move !== undefined && !SPLIT_MOVE_LABELS[ev.move]) {
+        warn(`${tag}（拍 ${fmtBeat(beat)}）：移動方式「${ev.move}」無效，遊戲會用相反方向。`);
+      }
+      if (ev.count !== undefined) {
+        warn(`${tag}（拍 ${fmtBeat(beat)}）：分割已固定為 2 塊，count 會被忽略。`);
+      }
+    }
+    const g = groupOf(type);
+    if (!g) return;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push({ beat, end: beat + Math.max(dur, 0.001), type });
+  });
+  for (const [g, arr] of groups) {
+    arr.sort((a, b) => a.beat - b.beat);
+    let active = null;
+    for (const cur of arr) {
+      if (active && cur.beat < active.end - eps) {
+        const msg = `視窗事件重疊（${groupLabel[g] || g}）：拍 ${fmtBeat(active.beat)} ${active.type} 與拍 ${fmtBeat(cur.beat)} ${cur.type} 同時作用。`;
+        if (g === "split") err(msg); else warn(msg);
+      }
+      if (!active || cur.end > active.end) active = cur;
+    }
+  }
+
+  // --- 特效事件 ---
+  const fxTypes = new Set(Object.keys(FX_NAMES));
+  const fxGroups = new Map();
+  state.effects.forEach((ev, i) => {
+    const beat = Number(ev.beat);
+    const type = String(ev.type || "");
+    const tag = `特效事件 #${i + 1}`;
+    if (!Number.isFinite(beat) || beat < 0) {
+      err(`${tag}：拍數不合法（${ev.beat}）。`);
+      return;
+    }
+    if (!fxTypes.has(type)) {
+      err(`${tag}：未知的 type「${type}」。`);
+      return;
+    }
+    const dur = numOr(ev.duration, 0);
+    if (dur <= 0.01) warn(`${tag}（拍 ${fmtBeat(beat)} ${type}）持續拍數 <= 0。`);
+    const strength = numOr(ev.strength, 1);
+    if (strength < 0 || strength > 1) warn(`${tag}（拍 ${fmtBeat(beat)}）：強度必須在 0–1。`);
+    if (hasAudio && songTimeOfBeat(beat) > totalSec + 0.02) {
+      err(`${tag}（拍 ${fmtBeat(beat)} ${type}）超出音樂長度，永遠不會播放。`);
+    }
+    if (!fxGroups.has(type)) fxGroups.set(type, []);
+    fxGroups.get(type).push({ beat, end: beat + Math.max(dur, 0), type });
+  });
+  for (const [type, arr] of fxGroups) {
+    arr.sort((a, b) => a.beat - b.beat);
+    let active = null;
+    for (const cur of arr) {
+      if (active && cur.beat < active.end - eps) {
+        warn(`特效重疊：拍 ${fmtBeat(active.beat)} 與拍 ${fmtBeat(cur.beat)} 的「${FX_NAMES[type] || type}」持續時間重疊。`);
+      }
+      if (!active || cur.end > active.end) active = cur;
+    }
+  }
+
+  // --- BPM / 視窗初始設定 ---
+  const segs = state.timing.bpm_segments || [];
+  if (!segs.length) {
+    err("沒有任何 BPM 段。");
+  }
+  const seenBpm = new Set();
+  segs.forEach((s, i) => {
+    const beat = Number(s.beat) || 0;
+    const bpm = Number(s.bpm);
+    if (!Number.isFinite(bpm) || bpm <= 0) err(`BPM 段 #${i + 1}：BPM 必須 > 0。`);
+    if (beat < 0) warn(`BPM 段 #${i + 1}：拍數是負的。`);
+    const key = round(beat, 4);
+    if (seenBpm.has(key)) warn(`BPM 段在拍 ${fmtBeat(beat)} 重複，後面的會蓋掉前面的。`);
+    seenBpm.add(key);
+  });
+
+  const ww = Math.round(numOr(state.settings.win_w, 0));
+  const wh = Math.round(numOr(state.settings.win_h, 0));
+  if ((ww > 0) !== (wh > 0)) {
+    warn("初始視窗只填了寬或高其中一個；遊戲偵測到任一為 0 就會沿用目前視窗大小。");
+  }
+  if (ww > 0 && ww < 320) warn("初始視窗寬度小於 320，遊戲會自動放大到 320。");
+  if (wh > 0 && wh < 240) warn("初始視窗高度小於 240，遊戲會自動放大到 240。");
+
+  return { errors, warnings };
+}
+
+function showValidation(result) {
+  const list = $("validateList");
+  list.innerHTML = "";
+  const add = (level, tag, text) => {
+    const row = document.createElement("div");
+    row.className = `vitem ${level}`;
+    const t = document.createElement("span");
+    t.className = "vtag";
+    t.textContent = tag;
+    const m = document.createElement("span");
+    m.textContent = text;
+    row.appendChild(t);
+    row.appendChild(m);
+    list.appendChild(row);
+  };
+  for (const m of result.errors) add("error", "錯誤", m);
+  for (const m of result.warnings) add("warn", "提醒", m);
+  if (!result.errors.length && !result.warnings.length) {
+    add("ok", "通過", "沒有發現重複、超長或事件重疊。");
+  }
+  $("validateSub").textContent =
+    `錯誤 ${result.errors.length} · 提醒 ${result.warnings.length}`;
+  $("btnValidateExport").style.display = result.errors.length ? "" : "none";
+  $("validateModal").classList.remove("hidden");
+}
+
+function closeValidation() {
+  $("validateModal").classList.add("hidden");
+}
+
+$("btnValidate").onclick = () => {
+  const r = validateChart();
+  showValidation(r);
+  setStatus(r.errors.length
+    ? `檢查發現 ${r.errors.length} 個錯誤、${r.warnings.length} 個提醒`
+    : `檢查完成：${r.warnings.length} 個提醒`, 5000);
+};
+$("btnValidateClose").onclick = closeValidation;
+$("btnValidateExport").onclick = () => {
+  closeValidation();
+  exportChart(true);
+};
+$("validateModal").addEventListener("mousedown", (e) => {
+  if (e.target === $("validateModal")) closeValidation();
+});
+
+function exportChart(force = false) {
+  if (!force) {
+    const result = validateChart();
+    if (result.errors.length) {
+      showValidation(result);
+      setStatus(`檢查發現 ${result.errors.length} 個錯誤，已阻止匯出；可選擇「仍要匯出」。`, 7000);
+      return;
+    }
+    if (result.warnings.length) {
+      setStatus(`檢查有 ${result.warnings.length} 個提醒，已繼續匯出。`, 5000);
+    }
+  }
+  const chart = buildChartData();
   const blob = new Blob([JSON.stringify(chart, null, 1)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -1555,10 +3967,61 @@ function loadChartData(data) {
   state.lanes = (data.lanes || []).map((k) => ({
     beat: k.beat || 0, lane: k.lane || 0,
     x: k.x || 0, y: k.y || 0, rot: k.rot || 0, scale: k.scale ?? 1,
+    alpha: clamp(numOr(k.alpha, 1), 0, 1),
     ease: k.ease || "smooth",
   }));
-  state.windows = (data.windows || []).map((w) => ({ ...w }));
+  state.windows = (data.windows || [])
+    .filter((w) => w && w.type !== "fullscreen")   // 全螢幕事件已移除
+    .map((w) => {
+      const ev = { ...w };
+      // 動畫長度：秒 → 拍（編輯器內部單位）
+      if (ev.duration !== undefined) {
+        ev.duration = round(beatsOfSeconds(numOr(ev.beat, 0), ev.duration), 4);
+      }
+      // 舊譜面沒有 anchor：補上中心對稱，避免驗證器一直提醒
+      if (ev.type === "resize" && !ANCHOR_LABELS[ev.anchor]) ev.anchor = "center";
+      return ev;
+    });
+  state.effects = (data.effects || []).map((e) => {
+    const beat = numOr(e.beat, 0);
+    return {
+      beat,
+      type: FX_NAMES[e.type] ? e.type : "flash",
+      // 持續時間：秒 → 拍（編輯器內部單位）
+      duration: round(beatsOfSeconds(beat, Math.max(numOr(e.duration, 0.35), 0.05)), 4),
+      strength: clamp(numOr(e.strength, 1), 0, 1),
+    };
+  });
+  const st = data.settings || {};
+  const win = (st.window && typeof st.window === "object") ? st.window : {};
+  state.settings = {
+    note_style: ["any", "bar", "orb"].includes(st.note_style) ? st.note_style : "any",
+    note_scale: clamp(numOr(st.note_scale, 1), 0.4, 2.5),
+    borderless: st.borderless !== false,
+    fullscreen: st.fullscreen === "block" ? "block" : "allow",
+    background: typeof st.background === "string" ? st.background : "",
+    background_dim: clamp(numOr(st.background_dim, 0.45), 0, 1),
+    win_w: clamp(Math.round(numOr(win.width, 0)), 0, 7680),
+    win_h: clamp(Math.round(numOr(win.height, 0)), 0, 4320),
+    win_x: Math.round(numOr(win.x, 0)),
+    win_y: Math.round(numOr(win.y, 0)),
+    win_centered: win.centered !== false,
+  };
+  // res:// 的圖片瀏覽器讀不到 → 清掉上一個譜面的預覽圖
+  bgPreviewUrl = "";
+  bgPreviewPath = state.settings.background;
+  bgImage = null;
 
+  selected = null;
+  scrollBeat = 0;
+  draftDirty = false;
+  syncFormFromState();
+  refreshLists();
+  syncDraftFromChart(true);
+}
+
+
+function syncFormFromState() {
   $("inTitle").value = state.meta.title;
   $("inArtist").value = state.meta.artist;
   $("inDiff").value = state.meta.difficulty;
@@ -1566,15 +4029,14 @@ function loadChartData(data) {
   $("inAudio").value = state.meta.audio;
   $("inBpm").value = state.timing.bpm_segments[0]?.bpm || 120;
   $("inOffset").value = state.timing.offset;
-
-  selected = null;
-  scrollBeat = 0;
-  draftDirty = false;
-  refreshLists();
-  syncDraftFromChart(true);
+  $("selNoteStyle").value = state.settings.note_style;
+  $("inNoteScale").value = state.settings.note_scale;
+  $("selFullscreen").value = state.settings.fullscreen;
+  $("chkBorderless").checked = state.settings.borderless;
+  syncChartSettingsForm();
 }
 
-$("btnExport").onclick = exportChart;
+$("btnExport").onclick = () => exportChart();
 
 $("btnAudio").onclick = () => $("fileAudio").click();
 $("fileAudio").onchange = async (e) => {
@@ -1591,6 +4053,11 @@ $("fileAudio").onchange = async (e) => {
     scrollBeat = 0;
     wavePeaks = computePeaks(audio.buffer);
     waveCacheDirty = true;
+    // 換音樂 → 之前的采音分析作廢
+    onset.ready = false;
+    onset.drum = [];
+    onset.melody = [];
+    $("onsetInfo").textContent = "載入音樂後按「分析目前音樂」。鼓點畫橘線、旋律畫青線。";
     if (!state.meta.audio) {
       state.meta.audio = "res://assets/audio/" + file.name;
       $("inAudio").value = state.meta.audio;
@@ -1611,6 +4078,7 @@ $("fileChart").onchange = (e) => {
   reader.onload = () => {
     try {
       loadChartData(JSON.parse(reader.result));
+      commit("載入譜面");
       setStatus("已載入譜面：" + file.name);
     } catch (err) {
       setStatus("譜面解析失敗：" + err.message);
@@ -1628,10 +4096,9 @@ const DRAFT_KEY = "reverb_chart_draft_v1";
 setInterval(() => {
   if (!dirty) return;
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({
-      meta: state.meta, timing: state.timing, notes: state.notes,
-      lanes: state.lanes, windows: state.windows,
-    }));
+    // 草稿存成「匯出格式」（長度是秒），還原時走同一條 loadChartData 換回拍，
+    // 這樣草稿、譜面、匯出檔的單位永遠一致。
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(buildChartData()));
   } catch (e) {}
 }, 4000);
 
@@ -1641,6 +4108,7 @@ $("btnRestore").onclick = () => {
   if (!confirm("要用瀏覽器自動儲存的草稿覆蓋目前內容嗎？")) return;
   try {
     loadChartData(JSON.parse(raw));
+    commit("還原草稿");
     setStatus("已還原草稿");
   } catch (e) {
     setStatus("草稿損壞");
@@ -1660,9 +4128,43 @@ window.addEventListener("keydown", (e) => {
   const tag = document.activeElement?.tagName;
   const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
 
+  // 側欄收合：Alt+1 / Alt+2；譜面設置：Ctrl+,
+  if (e.altKey && (e.key === "1" || e.key === "2")) {
+    e.preventDefault();
+    toggleSidebar(e.key === "1" ? "left" : "right");
+    return;
+  }
+  if (!typing && (e.ctrlKey || e.metaKey) && e.key === ",") {
+    e.preventDefault();
+    openChartSettings();
+    return;
+  }
+
+  // 復原 / 重做。在輸入框裡要讓瀏覽器自己處理（那是文字復原）。
+  if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+    e.preventDefault();
+    if (e.shiftKey) redo(); else undo();
+    return;
+  }
+  if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+    e.preventDefault();
+    redo();
+    return;
+  }
+
   if (e.code === "Space" && !typing) {
     e.preventDefault();
     togglePlay();
+    return;
+  }
+  // 播放倍速：[ 慢一階、] 快一階（采音時很好用）
+  if (!typing && (e.key === "[" || e.key === "]")) {
+    e.preventDefault();
+    const steps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+    let i = steps.findIndex((v) => Math.abs(v - audio.rate) < 0.001);
+    if (i < 0) i = 3;
+    i = clamp(i + (e.key === "]" ? 1 : -1), 0, steps.length - 1);
+    setRate(steps[i]);
     return;
   }
   if (e.key === "Delete" || e.key === "Backspace") {
@@ -1672,8 +4174,16 @@ window.addEventListener("keydown", (e) => {
       selected = null;
       markDirty();
       refreshLists();
+      commit("刪除音符");
       e.preventDefault();
     }
+    return;
+  }
+  if (!typing && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    const r = validateChart();
+    showValidation(r);
+    setStatus(`檢查完成：${r.errors.length} 個錯誤、${r.warnings.length} 個提醒`, 5000);
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
@@ -1689,6 +4199,7 @@ window.addEventListener("keydown", (e) => {
     selected = note;
     markDirty();
     refreshLists();
+    commit("新增音符");
     e.preventDefault();
     return;
   }
@@ -1724,12 +4235,12 @@ function loop() {
   drawPreview();
   drawWave();
 
-  const t = songTime();
   const b = currentBeat();
-  $("statTime").textContent = t.toFixed(2) + "s";
+  $("statTime").textContent = barBeat(b);
   $("statBeat").textContent = b.toFixed(2);
   $("statBpm").textContent = bpmSegments()[0].bpm;
-  $("posLabel").textContent = `${t.toFixed(2)} / ${audioDuration().toFixed(2)} s`;
+  const totalBeats = audio.buffer ? Math.max(beatAtSongTime(audioDuration()), 0) : 0;
+  $("posLabel").textContent = `${b.toFixed(2)} / ${totalBeats.toFixed(2)} 拍`;
   $("previewHint").textContent = draftDirty
     ? "未儲存的隊形 — 按「在目前拍新增關鍵影格」套用"
     : "拖曳：左右移動　Shift：旋轉　Alt：縮放";
@@ -1741,10 +4252,14 @@ function loop() {
 }
 
 function init() {
+  applySidebarState();
   resizeRoll();
   renderWinParams();
+  renderFxParams();
+  syncChartSettingsForm();
   refreshLists();
   drawPreview();
+  commit("開始");        // 初始檢查點，讓第一次復原也有東西可退
   requestAnimationFrame(loop);
   setStatus("先載入音樂，或用「載入譜面」開啟譜面 JSON");
 }

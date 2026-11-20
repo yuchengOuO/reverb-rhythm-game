@@ -21,6 +21,10 @@ const ZOOM_STEP := 1.07
 var home_size := Vector2i(640, 720)
 var home_pos := Vector2i.ZERO
 
+## 位置被改變時通知 WindowDirector，讓另一塊跟著動。
+## 簽名：func(new_pos: Vector2i)
+var on_moved: Callable = Callable()
+
 var _dragging := false
 var _grab := Vector2i.ZERO
 var _hint: Label
@@ -79,6 +83,7 @@ func _input(event: InputEvent) -> void:
 			_scale_by(1.0 / ZOOM_STEP)
 	elif event is InputEventMouseMotion and _dragging:
 		position = DisplayServer.mouse_get_position() - _grab
+		_notify_moved()
 
 
 func _scale_by(f: float) -> void:
@@ -91,12 +96,20 @@ func _scale_by(f: float) -> void:
 	# 以中心為基準，視窗才不會一邊放大一邊往右下角跑
 	position = center - Vector2i(ns.x / 2, ns.y / 2)
 	_show_hint()
+	_notify_moved()
 
 
 func _restore_home() -> void:
 	size = home_size
 	position = home_pos
 	_show_hint()
+	_notify_moved()
+
+
+## 告訴 WindowDirector 我跑到哪了，讓另一塊依「相同 / 相反方向」跟著動。
+func _notify_moved() -> void:
+	if on_moved.is_valid():
+		on_moved.call(position)
 
 
 func _show_hint() -> void:

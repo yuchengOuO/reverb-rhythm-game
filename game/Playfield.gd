@@ -33,8 +33,69 @@ const HOLD_GRACE_MAX := 0.40     # 最長放寬秒數
 const HOLD_GRACE_RATIO := 0.18   # 放寬 = 長條長度 × 18%，夾在上述範圍內
 const HOLD_REPRESS_BUFFER := 0.14  # 短暫放開的容許時間
 const HOLD_FADE := 0.22          # 消失時的淡出時間（避免瞬間不見）
+## 沒接到的長條：整條要「掉過判定線」之後才淡出，而不是停在原地消失。
+## 這段時間 = 判定線之後還要繼續掉多久（實際會掉 pps × 0.85 像素，一定出畫面）。
+const MISS_FALL := 0.85
+
+## --- 擊中粒子 ---
+##
+## 舊版每一軌只有一個 CPUParticles2D；連打時新的一顆會 restart() 同一個發射器，
+## 把上一顆還在飛的粒子整個清掉 —— 看起來就是「新特效覆蓋舊特效」。
+## 這裡改成每一軌準備多個獨立發射器、環狀輪替：
+## 每次擊中都有自己的粒子，前一次的特效會繼續跑完，不會被吃掉。
+##
+## 生命週期 1.4 秒 + 重力 900：粒子會先往上炸開，再掉到判定線以下。
+## 就算是 4K（判定線離底部 346px）也能在消失前掉出畫面，
+## 不會出現「粒子在半空中被硬切」的殘影。
+##
+## 12 個／軌是為了涵蓋「1/32 連打」：1.4 秒內最多會有 11 顆同時在跑。
+const FX_POOL_PER_LANE := 12
+const FX_LIFETIME := 1.4
+const FX_GRAVITY := 900.0
+
+## --- 結算 ---
+## 歌曲或譜面「完全結束」之後再等這麼久才進結算畫面。
+const RESULT_DELAY := 3.0
+
+## --- 計分（滿分 1,000,000）---
+##
+## 判定分 90% + 連擊分 10%。
+##   判定分 = 900,000 ×（Σ 音符權重 / 音符總數）
+##   連擊分 = 100,000 ×（最大連擊 / 音符總數）
+##
+## 每個音符的權重上限是 1.0：
+##   短音   = 判定權重（PERFECT 1.0 / GREAT 0.8 / GOOD 0.4 / MISS 0）
+##   長條   = 頭部 70% × 判定權重 + 尾端 30%（完整接到才有）
+## 所以「全部 PERFECT + 全部長條都接到尾端 + 不斷 combo」正好是 1,000,000。
+const MAX_SCORE := 1000000
+const SCORE_ACC_RATIO := 0.9
+const SCORE_COMBO_RATIO := 0.1
+## 長條的尾端佔這顆音符的多少比重（其餘是頭部判定）
+const HOLD_TAIL_RATIO := 0.3
+
+const WEIGHT_PERFECT := 1.0
+const WEIGHT_GREAT := 0.8
+const WEIGHT_GOOD := 0.4
+
+## 評價表：由好到差，結算畫面照這個順序由上往下排。
+## min 是門檻分數（含）。
+const GRADE_TIERS := [
+	{"letter": "SS", "min": 1000000, "note": "全部 PERFECT"},
+	{"letter": "S", "min": 950000, "note": "95 萬"},
+	{"letter": "A", "min": 880000, "note": "88 萬"},
+	{"letter": "B", "min": 800000, "note": "80 萬"},
+	{"letter": "C", "min": 650000, "note": "65 萬"},
+	{"letter": "D", "min": 0, "note": "未滿 65 萬"},
+]
 
 const BG := Color(0, 0, 0)
+
+## --- 背景圖 ---
+## 由 Main 依「譜面預設 / 玩家選擇」載入後傳進來；null = 純黑。
+## 尺寸不一定是舞台大小，繪製時用 cover 等比填滿。
+var bg_texture: Texture2D = null
+## 壓暗程度（0 = 原圖，1 = 全黑）
+var bg_dim := 0.45
 
 ## 主題：接住白光。
 ## 四軌目前刻意「無差別」——所有音符都是同一種白光，
@@ -58,8 +119,16 @@ var JUDGE_COLORS := {
 var chart: Chart
 var conductor: Conductor
 
-## 由 Main 每幀同步（會隨視窗大小改變）
+## 版面尺寸。**開場就固定**，之後視窗怎麼縮放都不變 —— 這是「譜面 UI」的座標系。
+## 視窗變小只是把外圍裁掉、變大只是露出更多背景，音符與判定點不會跟著縮放。
 var stage_size := Vector2(1280, 720)
+
+## 目前實際的繪圖區大小（由 Main 每幀同步，會隨視窗大小改變）。
+var view_size := Vector2(1280, 720)
+
+## 版面在繪圖區裡置中所需的位移 = (view_size - stage_size) / 2。
+## 整個 Playfield 節點會被搬到這個位置，所以 _draw() 裡一律用版面座標。
+var _view_offset := Vector2.ZERO
 
 # --- 執行期狀態 ---
 var score := 0
@@ -87,7 +156,9 @@ var _notes: Array = []
 ## 這些音符的頭部時間可能早就遠離掃描範圍，必須獨立追蹤才畫得出來。
 var _active_holds: Array[int] = []
 var _lane_keys: Array = [[], [], [], []]
-var _fx: Array = []
+## 擊中粒子：每一軌一組「環狀輪替」的發射器，避免連打時新特效清掉舊特效。
+var _fx_pool: Array = []
+var _fx_next: Array[int] = [0, 0, 0, 0]
 var _press: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var _rings: Array = []
 var _judge_text := ""
@@ -100,6 +171,7 @@ var _orb_tex: Texture2D
 ## 長條音柱用的橫向漸層（中間亮、兩側收暗，縱向均勻）
 var _beam_tex: Texture2D
 var _last_size := Vector2.ZERO
+var _last_view := Vector2.ZERO
 var _shake := 0.0
 
 ## 除錯用：自動完美打擊（啟動參數 --autohit）
@@ -135,6 +207,9 @@ func set_chart(c: Chart) -> void:
 			"grade": "",
 			"weight": 0.0,
 			"held": false,       # 頭部是否已被打中（決定要不要釘在判定線上）
+			"completed": false,  # 長條是否有「完整接到尾端」（決定要不要在判定線噴光）
+			"tail_fx": false,    # 尾端收乾淨的光暈是否已經噴過
+			"fall_at": 0.0,      # 放開後開始往下掉的時間（0 = 沒在掉）
 			"off_at": 0.0,       # 這次「放開」開始的時間，0 = 正按著
 			"dead_at": 0.0,      # 幾秒後完全停止繪製（淡出用）
 			"freeze_y2": -1e9,   # 失敗的長條凍結尾端位置，避免繼續往前收
@@ -158,41 +233,77 @@ func set_chart(c: Chart) -> void:
 	finished_flag = false
 	_judge_timer = 0.0
 	_rings.clear()
+	# 譜面可能指定了不同的大小，版面要重算
+	_layout()
 
 
 func _layout() -> void:
 	var usable := minf(stage_size.x * 0.86, 640.0)
 	lane_w = usable / float(LANE_COUNT)
-	# 音符光球與判定球的比例：音符明顯小一號，才看得出「掉進去」
-	note_r = lane_w * 0.17
-	note_bar_w = lane_w * 0.78
-	note_bar_h = clampf(lane_w * 0.17, 10.0, 26.0)
-	rec_r = lane_w * 0.30
+	# 音符大小 = 玩家設定 × 譜面預設。上限卡在軌道寬度內，
+	# 否則調到 1.8 倍時長條會溢出到隔壁軌，看起來像兩顆音符。
+	var ns := note_scale()
+	note_r = lane_w * 0.17 * ns
+	note_bar_w = minf(lane_w * 0.78 * ns, lane_w * 0.98)
+	note_bar_h = clampf(lane_w * 0.17 * ns, 8.0, 36.0)
+	# 判定球只跟著放大一半：全放大的話四顆球會黏在一起，
+	# 但完全不動又會讓大音符「塞不進」小杯子。
+	rec_r = lane_w * 0.30 * lerpf(1.0, ns, 0.5)
 	judge_y = stage_size.y * 0.84
 	var approach := 1.15 / clampf(Settings.scroll_speed, 0.25, 3.0)
 	pps = (judge_y + 80.0) / approach
 
 
+## 這個譜面實際使用的音符樣式。
+## 譜面在 settings.note_style 鎖定時（"bar" / "orb"）以譜面為準，
+## 沒鎖定（"any"）才跟著玩家設定走。
+func note_style() -> String:
+	if chart != null and chart.note_style in ["bar", "orb"]:
+		return chart.note_style
+	return Settings.note_style
+
+
+## 音符大小倍率 = 玩家設定 × 譜面預設
+func note_scale() -> float:
+	var s := Settings.note_scale
+	if chart != null:
+		s *= chart.note_scale
+	return clampf(s, 0.4, 2.5)
+
+
+## 換背景（遊戲中暫停選單也會呼叫）。tex = null 就是純黑。
+func set_background(tex: Texture2D, dim := 0.45) -> void:
+	bg_texture = tex
+	bg_dim = clampf(dim, 0.0, 1.0)
+	queue_redraw()
+
+
 func _build_particles() -> void:
-	for i in LANE_COUNT:
-		var p := CPUParticles2D.new()
-		p.emitting = false
-		p.one_shot = true
-		p.amount = 20
-		p.lifetime = 0.5
-		p.explosiveness = 0.92
-		p.direction = Vector2(0, -1)
-		p.spread = 62.0
-		p.initial_velocity_min = 90.0
-		p.initial_velocity_max = 300.0
-		p.gravity = Vector2(0, 820)
-		p.scale_amount_min = 0.25
-		p.scale_amount_max = 0.7
-		p.color = Color(1, 1, 1, 0.9)
-		p.texture = _dot_tex
-		p.local_coords = false
-		add_child(p)
-		_fx.append(p)
+	_fx_pool.clear()
+	for lane in LANE_COUNT:
+		var pool: Array = []
+		for k in FX_POOL_PER_LANE:
+			var p := CPUParticles2D.new()
+			p.emitting = false
+			p.one_shot = true
+			p.amount = 20
+			p.lifetime = FX_LIFETIME
+			p.explosiveness = 0.92
+			p.direction = Vector2(0, -1)
+			p.spread = 62.0
+			p.initial_velocity_min = 110.0
+			p.initial_velocity_max = 330.0
+			p.gravity = Vector2(0, FX_GRAVITY)
+			p.scale_amount_min = 0.22
+			p.scale_amount_max = 0.65
+			p.color = Color(1, 1, 1, 0.9)
+			p.color_ramp = _fade_ramp()
+			p.texture = _dot_tex
+			p.local_coords = false
+			add_child(p)
+			pool.append(p)
+		_fx_pool.append(pool)
+		_fx_next[lane] = 0
 
 
 # --------------------------------------------------------------------------
@@ -207,6 +318,13 @@ func _process(delta: float) -> void:
 		_last_size = stage_size
 		_layout()
 
+	# 視窗大小改變時只搬動版面，不重新排版（UI 不跟著縮放）
+	if view_size != _last_view:
+		_last_view = view_size
+		_view_offset = (view_size - stage_size) * 0.5
+		position = _view_offset
+		queue_redraw()
+
 	var t: float = conductor.song_time if conductor != null else 0.0
 
 	_decay(delta)
@@ -218,7 +336,7 @@ func _process(delta: float) -> void:
 	_check_misses(t)
 	_update_rings(delta)
 
-	if t > chart.duration and not finished_flag:
+	if not finished_flag and t >= finish_time():
 		finished_flag = true
 		finished.emit()
 
@@ -289,16 +407,19 @@ func _try_hit(lane: int, t: float) -> void:
 
 	var grade := "MISS"
 	var weight := 0.0
-	var base := 0
 	if best_dt <= W_PERFECT:
-		grade = "PERFECT"; weight = 1.0; base = 300
+		grade = "PERFECT"; weight = WEIGHT_PERFECT
 	elif best_dt <= W_GREAT:
-		grade = "GREAT"; weight = 0.7; base = 200
+		grade = "GREAT"; weight = WEIGHT_GREAT
 	else:
-		grade = "GOOD"; weight = 0.4; base = 100
+		grade = "GOOD"; weight = WEIGHT_GOOD
 
 	var n: Dictionary = _notes[best]
-	n.weight = weight
+	# 長條的頭部只算 70%，剩下 30% 等尾端真的接到才給。
+	var gain := weight
+	if float(n.len) > 0.0:
+		gain *= (1.0 - HOLD_TAIL_RATIO)
+	n.weight = gain
 	n.grade = grade
 	if float(n.len) > 0.0:
 		n.state = 1
@@ -309,21 +430,31 @@ func _try_hit(lane: int, t: float) -> void:
 		n.state = 2
 		n.dead_at = t
 
-	_register_hit(grade, weight, base, lane, t)
+	_register_hit(grade, gain, lane, t)
 
 
-func _register_hit(grade: String, weight: float, base: int, lane: int, t: float) -> void:
+func _register_hit(grade: String, weight: float, lane: int, t: float) -> void:
 	counts[grade] += 1
 	combo += 1
 	max_combo = maxi(max_combo, combo)
 	acc_sum += weight
 	acc_count += 1
-	score += int(base * (1.0 + minf(combo, 200) * 0.005))
+	_recompute_score()
 	_judge_text = grade
 	_judge_color = JUDGE_COLORS.get(grade, Color.WHITE)
 	_judge_timer = 0.55
 	_spawn_burst(lane, grade, t)
 	_shake = maxf(_shake, 1.5 if grade == "PERFECT" else 0.8)
+
+
+## 依「目前累積的判定權重 + 最大連擊」重算總分。
+## 每打一顆就重算一次，數值永遠是單調的（除了斷 combo 時連擊分會掉），
+## 而且結算時一定落在 0 ~ 1,000,000 之間。
+func _recompute_score() -> void:
+	var total := maxi(_notes.size(), 1)
+	var acc_part := float(MAX_SCORE) * SCORE_ACC_RATIO * (acc_sum / float(total))
+	var combo_part := float(MAX_SCORE) * SCORE_COMBO_RATIO * (float(max_combo) / float(total))
+	score = int(round(clampf(acc_part + combo_part, 0.0, float(MAX_SCORE))))
 
 
 ## 長條的「尾端放寬」秒數。
@@ -346,6 +477,12 @@ func _update_holds(t: float) -> void:
 
 		# 已經結束的：等淡出播完就從清單移除
 		if int(n.state) == 2:
+			# 完整接到的長條，要等尾端真的收到判定線那一刻才噴光暈。
+			# 舊版是在「進入放寬區」時就噴（早了 0.4 秒），
+			# 看起來像光柱還沒收完就自己先爆一下。
+			if bool(n.completed) and not bool(n.tail_fx) and t >= float(n.end_time):
+				n.tail_fx = true
+				_spawn_ring(int(n.lane), Color(1, 1, 1, 0.55), t)
 			if t >= float(n.dead_at):
 				_active_holds.remove_at(i)
 			continue
@@ -360,9 +497,11 @@ func _update_holds(t: float) -> void:
 		#    收完才淡出，否則會看到光柱在半空中被硬切。
 		if t >= end_t - _hold_grace(n):
 			n.state = 2
+			n.completed = true
 			n.dead_at = maxf(t + HOLD_FADE, end_t + HOLD_FADE)
-			score += 60
-			_spawn_ring(int(n.lane), Color(1, 1, 1, 0.55), t)
+			# 尾端接到 → 補上這顆長條剩下的 30% 權重
+			acc_sum += HOLD_TAIL_RATIO
+			_recompute_score()
 			continue
 
 		# 2) 按鍵狀態：短暫放開會進緩衝，超過緩衝時間才真的算斷
@@ -379,10 +518,13 @@ func _update_holds(t: float) -> void:
 
 		# 真的放開了 → 斷 Combo，把這顆音符改記為 MISS
 		n.state = 2
-		n.dead_at = t + HOLD_FADE
 		# 凍結光柱當下的長度：失敗的長條不該繼續「自己往前收」，
-		# 那樣看起來像還在被按住。讓它就停在原地淡掉。
+		# 那樣看起來像還在被按住。
 		n.freeze_y2 = -(float(n.end_time) - t) * pps
+		# 然後整條從判定線往下滑出畫面 —— MISS 就是要「超過判定線」，
+		# 停在原地淡掉會讓人分不清是接到還是掉了。
+		n.fall_at = t
+		n.dead_at = t + MISS_FALL
 		var old_grade := str(n.grade)
 		if counts.has(old_grade) and counts[old_grade] > 0:
 			counts[old_grade] -= 1
@@ -390,6 +532,7 @@ func _update_holds(t: float) -> void:
 		acc_sum -= float(n.weight)
 		n.grade = "MISS"
 		combo = 0
+		_recompute_score()
 		_judge_text = "MISS"
 		_judge_color = JUDGE_COLORS["MISS"]
 		_judge_timer = 0.45
@@ -409,8 +552,9 @@ func _check_misses(t: float) -> void:
 		n.grade = "MISS"
 		# 長條即使沒接到，也要讓它繼續往下掉、淡出，
 		# 不能整條瞬間不見（那會看起來像遊戲破圖）。
+		# 掉落距離要足夠「整條越過判定線」，所以不是 HOLD_FADE 而是 MISS_FALL。
 		if float(n.len) > 0.0:
-			n.dead_at = t + HOLD_FADE
+			n.dead_at = t + MISS_FALL
 			_active_holds.append(k)
 		else:
 			n.dead_at = t
@@ -418,21 +562,56 @@ func _check_misses(t: float) -> void:
 		combo = 0
 		acc_sum += 0.0
 		acc_count += 1
+		_recompute_score()
 		_judge_text = "MISS"
 		_judge_color = JUDGE_COLORS["MISS"]
 		_judge_timer = 0.4
 
 
 func _spawn_burst(lane: int, grade: String, t: float) -> void:
-	if lane < 0 or lane >= _fx.size():
+	if not Settings.hit_fx_enabled:
 		return
-	var p: CPUParticles2D = _fx[lane]
+	if lane < 0 or lane >= _fx_pool.size():
+		return
+	var pool: Array = _fx_pool[lane]
+	if pool.is_empty():
+		return
+	# 環狀輪替：從下一個開始找「已經跑完」的發射器，舊的粒子繼續跑完。
+	# 如果全部都還在跑（極端連打），才退回輪替最舊的那一顆。
+	var pool_size: int = pool.size()
+	var start: int = int(_fx_next[lane]) % pool_size
+	var idx := -1
+	for k in pool_size:
+		var cand: CPUParticles2D = pool[(start + k) % pool_size]
+		if not cand.emitting:
+			idx = (start + k) % pool_size
+			break
+	if idx < 0:
+		idx = start
+	_fx_next[lane] = (idx + 1) % pool_size
+	var p: CPUParticles2D = pool[idx]
 	p.position = _lane_xf(lane, t).origin
 	p.color = JUDGE_COLORS.get(grade, LANE_COLORS[lane])
-	p.amount = 26 if grade == "PERFECT" else 14
+	# 玩家設定是倍率：數量 0.25–2.0、大小 0.5–2.0。
+	# PERFECT 的基準量比較多，但還是要讓低效能裝置能壓下來。
+	var base_amount := 26 if grade == "PERFECT" else 14
+	p.amount = clampi(int(round(base_amount * Settings.hit_fx_count)), 1, 64)
+	var fx_scale := Settings.hit_fx_size
+	p.scale_amount_min = 0.22 * fx_scale
+	p.scale_amount_max = 0.65 * fx_scale
 	p.restart()
 	p.emitting = true
 	_spawn_ring(lane, JUDGE_COLORS.get(grade, LANE_COLORS[lane]), t)
+
+
+## 粒子的透明度曲線：前段維持亮度，後段才收乾淨。
+## 沒有這條曲線的話，lifetime 一到整批粒子會「瞬間消失」。
+func _fade_ramp() -> Gradient:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 0.9))
+	g.set_color(1, Color(1, 1, 1, 0.0))
+	g.add_point(0.55, Color(1, 1, 1, 0.72))
+	return g
 
 
 func _spawn_ring(lane: int, color: Color, t: float) -> void:
@@ -475,7 +654,7 @@ func _lane_center_x(lane: int) -> float:
 func _lane_state(lane: int, t: float) -> Dictionary:
 	var keys: Array = _lane_keys[lane]
 	if keys.is_empty():
-		return {"x": 0.0, "y": 0.0, "rot": 0.0, "scale": 1.0}
+		return {"x": 0.0, "y": 0.0, "rot": 0.0, "scale": 1.0, "alpha": 1.0}
 
 	var n := keys.size()
 	if t <= float(keys[0].time):
@@ -502,7 +681,14 @@ func _lane_state(lane: int, t: float) -> Dictionary:
 		"y": lerpf(float(a.y), float(b.y), f),
 		"rot": lerpf(float(a.rot), float(b.rot), f),
 		"scale": lerpf(float(a.scale), float(b.scale), f),
+		"alpha": lerpf(float(a.get("alpha", 1.0)), float(b.get("alpha", 1.0)), f),
 	}
+
+
+## 這一軌目前的透明度（0.0 ~ 1.0）。譜面沒寫就當 1.0。
+## 底色、判定球、以及「這一軌掉下來的音符」都乘上它。
+func _lane_alpha(lane: int, t: float) -> float:
+	return clampf(float(_lane_state(lane, t).get("alpha", 1.0)), 0.0, 1.0)
 
 
 func _ease(kind: String, f: float) -> float:
@@ -538,8 +724,12 @@ func _lane_xf(lane: int, t: float) -> Transform2D:
 # --------------------------------------------------------------------------
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, stage_size), BG)
-	_draw_background()
+	# 背景鋪滿整個繪圖區：視窗比版面大時，多出來的地方是背景而不是黑邊。
+	# 版面本身（軌道、音符、判定點、HUD）一律用 stage_size 座標，
+	# 由節點位移置中，所以視窗再怎麼縮放都不會改變 UI 的大小。
+	var bg_rect := Rect2(-_view_offset, view_size)
+	draw_rect(bg_rect, BG)
+	_draw_background(bg_rect)
 
 	var t: float = conductor.song_time if conductor != null else 0.0
 
@@ -549,20 +739,33 @@ func _draw() -> void:
 	# 拆成兩層之後，軌道底色永遠在所有音符的下面。
 	for i in LANE_COUNT:
 		draw_set_transform_matrix(_lane_xf(i, t))
-		_draw_lane_base()
+		_draw_lane_base(_lane_alpha(i, t))
 
 	# 第二層：音符與判定球。
 	for i in LANE_COUNT:
 		draw_set_transform_matrix(_lane_xf(i, t))
-		_draw_notes(i, t)
-		_draw_receiver(i)
+		var la := _lane_alpha(i, t)
+		_draw_notes(i, t, la)
+		_draw_receiver(i, la)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 
 	_draw_rings()
 	_draw_hud(t)
 
 
-func _draw_background() -> void:
+func _draw_background(bg_rect: Rect2) -> void:
+	# 背景圖：cover 等比填滿整個繪圖區，再壓一層黑幕。
+	# 壓暗是必要的 —— 譜面的核心是白光，背景只要搶走一點對比就會影響判讀。
+	if bg_texture != null:
+		var tex_size := bg_texture.get_size()
+		if tex_size.x > 0.0 and tex_size.y > 0.0:
+			var fit := maxf(bg_rect.size.x / tex_size.x, bg_rect.size.y / tex_size.y)
+			var draw_size := tex_size * fit
+			var draw_pos := bg_rect.position + (bg_rect.size - draw_size) * 0.5
+			draw_texture_rect(bg_texture, Rect2(draw_pos, draw_size), false, Color.WHITE)
+			if bg_dim > 0.001:
+				draw_rect(bg_rect, Color(0, 0, 0, bg_dim))
+
 	# 純黑。這個主題的重點就是「除了光以外什麼都沒有」，
 	# 所以背景不鋪任何色塊，只留兩樣極淡的東西：
 	#   1. 拍線（幫助抓節奏，但不是給眼睛看的裝飾）
@@ -588,7 +791,9 @@ func _draw_background() -> void:
 		draw_line(Vector2(0, y), Vector2(stage_size.x, y), Color(1, 1, 1, 0.013), 1.0)
 
 
-func _draw_lane_base() -> void:
+func _draw_lane_base(a: float = 1.0) -> void:
+	if a <= 0.001:
+		return
 	var half := lane_w * 0.5
 	var top := -judge_y - 160.0
 	var bottom := 90.0
@@ -596,9 +801,10 @@ func _draw_lane_base() -> void:
 	# 軌道只是「比黑再亮一點點」的直條，讓四條軌有邊界但不搶戲。
 	# 係數壓得很低：兩條軌道重疊時兩層加起來也只有 0.014，
 	# 不會把後面那軌的音符糊掉。
-	draw_rect(Rect2(-half, top, lane_w, bottom - top), Color(1, 1, 1, 0.007))
-	draw_line(Vector2(-half, top), Vector2(-half, bottom), Color(1, 1, 1, 0.040), 1.0)
-	draw_line(Vector2(half, top), Vector2(half, bottom), Color(1, 1, 1, 0.040), 1.0)
+	# 譜面給的單軌透明度直接乘在這兩個係數上。
+	draw_rect(Rect2(-half, top, lane_w, bottom - top), Color(1, 1, 1, 0.007 * a))
+	draw_line(Vector2(-half, top), Vector2(-half, bottom), Color(1, 1, 1, 0.040 * a), 1.0)
+	draw_line(Vector2(half, top), Vector2(half, bottom), Color(1, 1, 1, 0.040 * a), 1.0)
 
 
 ## 判定點設計：承接光的球體。
@@ -608,7 +814,9 @@ func _draw_lane_base() -> void:
 ##
 ## 為了讓玩家抓得到時間點，球的「赤道」有一條極淡的水平線，
 ## 音符的中心對齊這條線的瞬間就是判定點。
-func _draw_receiver(lane: int) -> void:
+func _draw_receiver(lane: int, a: float = 1.0) -> void:
+	if a <= 0.001:
+		return
 	var p: float = _press[lane]
 	var r := rec_r * (1.0 + 0.10 * p)
 
@@ -617,25 +825,25 @@ func _draw_receiver(lane: int) -> void:
 	draw_texture_rect(
 		_glow_tex,
 		Rect2(-gs * 0.5, -gs * 0.5, gs, gs),
-		false, Color(1, 1, 1, 0.09 + 0.26 * p)
+		false, Color(1, 1, 1, (0.09 + 0.26 * p) * a)
 	)
 
 	# 赤道線：真正的判定基準。球體是「容器」，這條線才是「接住的位置」。
 	var eq := lane_w * 0.46
-	draw_line(Vector2(-eq, 0), Vector2(eq, 0), Color(1, 1, 1, 0.14 + 0.26 * p), 1.0)
+	draw_line(Vector2(-eq, 0), Vector2(eq, 0), Color(1, 1, 1, (0.14 + 0.26 * p) * a), 1.0)
 
 	# 玻璃球：內部幾乎透明，靠邊緣的一圈光把「球」的形狀撐出來。
 	# 如果連內部都填亮，會變成一顆灰色圓盤，看起來就不像球了。
 	draw_texture_rect(
 		_orb_tex,
 		Rect2(-r, -r, r * 2.0, r * 2.0),
-		false, Color(1, 1, 1, 0.10 + 0.52 * p)
+		false, Color(1, 1, 1, (0.10 + 0.52 * p) * a)
 	)
-	draw_arc(Vector2.ZERO, r, 0.0, TAU, 56, Color(1, 1, 1, 0.72 + 0.28 * p), 1.6, true)
-	draw_arc(Vector2.ZERO, r * 0.90, 0.0, TAU, 56, Color(1, 1, 1, 0.12 + 0.22 * p), 1.0, true)
+	draw_arc(Vector2.ZERO, r, 0.0, TAU, 56, Color(1, 1, 1, (0.72 + 0.28 * p) * a), 1.6, true)
+	draw_arc(Vector2.ZERO, r * 0.90, 0.0, TAU, 56, Color(1, 1, 1, (0.12 + 0.22 * p) * a), 1.0, true)
 
 	# 球心：平常只是一點微光，接到光時才亮成熱點
-	draw_circle(Vector2.ZERO, r * 0.16, Color(1, 1, 1, 0.30 + 0.70 * p))
+	draw_circle(Vector2.ZERO, r * 0.16, Color(1, 1, 1, (0.30 + 0.70 * p) * a))
 
 
 ## 畫一顆發光球（音符與判定點共用）。
@@ -661,7 +869,7 @@ func _draw_orb(pos: Vector2, r: float, bright: float, alpha: float = 1.0) -> voi
 
 ## 音符寬度的一半。長條與圓球共用，長條的判定/繪製才會跟著樣式走。
 func _note_half_w() -> float:
-	return note_bar_w * 0.5 if Settings.note_style == "bar" else note_r
+	return note_bar_w * 0.5 if note_style() == "bar" else note_r
 
 
 ## 膠囊（圓角長條）。Godot 沒有內建的圓角矩形，用一個矩形 + 兩顆圓接起來。
@@ -694,21 +902,33 @@ func _draw_bar_note(pos: Vector2, alpha: float) -> void:
 	)
 
 
-## 畫一顆音符（依 Settings.note_style 決定長條或圓球）。
+## 畫一顆音符（依音符樣式決定長條或圓球）。
 func _draw_note(pos: Vector2, alpha: float) -> void:
-	if Settings.note_style == "bar":
+	if note_style() == "bar":
 		_draw_bar_note(pos, alpha)
 	else:
 		_draw_orb(pos, note_r, 1.0, alpha)
 
 
 ## 長條的音柱。head_y 是頭部（判定端）的位置，尾端依 end_time 算。
+##
+## 「被接住」的長條頭部釘在判定線上，光柱會隨著時間被判定線吃掉。
+## 這裡有一個關鍵的夾鉗：尾端不能越過頭部。
+## 少了它，尾端通過判定線之後 head/tail 的上下關係會翻轉，
+## min()/abs() 算出來的區間就變成「從判定線往下長」，
+## 看起來像判定線下面冒出一小截殘光（而且 miss 的時候更明顯）。
 func _draw_hold_body(n: Dictionary, t: float, head_y: float, alpha: float) -> void:
 	var tail_y := -(float(n.end_time) - t) * pps
 	# 失敗的長條已凍結長度（見 _update_holds）
 	var frozen := float(n.get("freeze_y2", -1e9))
 	if frozen > -1e8:
 		tail_y = frozen
+	# 放開後整條一起往下掉（頭部與尾端同步位移，長度不變）
+	if float(n.get("fall_at", 0.0)) > 0.0:
+		tail_y += (t - float(n.fall_at)) * pps
+	# 被接住 → 光柱只存在於判定線「之上」，尾端最多收到判定線為止
+	if bool(n.held):
+		tail_y = minf(tail_y, head_y)
 	var body_top := minf(head_y, tail_y)
 	var body_h := absf(head_y - tail_y)
 
@@ -735,29 +955,42 @@ func _draw_hold_body(n: Dictionary, t: float, head_y: float, alpha: float) -> vo
 		draw_line(Vector2(-bw * 1.15, body_top), Vector2(-bw * 1.15, body_top + body_h), Color(1, 1, 1, 0.22 * a), 1.0)
 		draw_line(Vector2(bw * 1.15, body_top), Vector2(bw * 1.15, body_top + body_h), Color(1, 1, 1, 0.22 * a), 1.0)
 
-	# 尾端的光帽：一小段收尾，不用大球。
-	# 大球在這個尺寸下會變成一顆灰色圓盤，反而像雜點。
-	var tail_hw := _note_half_w() * 0.62
-	var tail_hh := (note_bar_h * 0.34) if Settings.note_style == "bar" else (note_r * 0.62)
-	_draw_capsule(Vector2(0, tail_y), tail_hw, tail_hh, Color(1, 1, 1, 0.55 * a))
+		# 尾端的光帽：一小段收尾，不用大球。
+		# 大球在這個尺寸下會變成一顆灰色圓盤，反而像雜點。
+		# 只在「還有柱身」的時候畫 —— 整條被吃掉之後再畫，
+		# 光帽就會單獨留在判定線上變成一個多出來的亮塊。
+		var tail_hw := _note_half_w() * 0.62
+		var tail_hh := (note_bar_h * 0.34) if note_style() == "bar" else (note_r * 0.62)
+		_draw_capsule(Vector2(0, tail_y), tail_hw, tail_hh, Color(1, 1, 1, 0.55 * a))
 
 
 ## 畫單一顆音符（含長條音柱）。state 2 的淡出也在這裡處理。
-func _draw_note_entry(n: Dictionary, t: float) -> void:
+func _draw_note_entry(n: Dictionary, t: float, lane_alpha: float = 1.0) -> void:
 	var state := int(n.state)
-	var alpha := 1.0
+	# 這一軌的透明度也套在音符上：軌道變淡，掉下來的音符一起變淡
+	var alpha := lane_alpha
 	if state == 2:
 		var dead := float(n.dead_at)
 		if dead <= 0.0 or t >= dead:
 			return
-		alpha = clampf((dead - t) / HOLD_FADE, 0.0, 1.0)
-		alpha *= alpha  # 平方 → 收尾更柔，不會像被硬切掉
+		var f := clampf((dead - t) / HOLD_FADE, 0.0, 1.0)
+		alpha *= f * f  # 平方 → 收尾更柔，不會像被硬切掉
 
 	var y := -(float(n.time) - t) * pps
 	# 打中過的長條：頭部釘在判定線上，由尾端往回收
 	if bool(n.held):
 		y = 0.0
-	if y < -judge_y - 260.0 or y > 420.0:
+	# 中途放開（算 MISS）：頭部從判定線開始往下掉，整條跟著滑出畫面
+	var drop := 0.0
+	if float(n.get("fall_at", 0.0)) > 0.0:
+		drop = (t - float(n.fall_at)) * pps
+		y = drop
+	# 剔除：長條不能只看頭部 —— 頭掉出畫面時尾端可能還在螢幕上，
+	# 那時候把整條丟掉會變成「光柱在半空中被切斷」。
+	var bottom := 420.0
+	if float(n.len) > 0.0:
+		bottom += float(n.len) * pps
+	if y < -judge_y - 260.0 or y > bottom:
 		return
 
 	if float(n.len) > 0.0:
@@ -766,7 +999,7 @@ func _draw_note_entry(n: Dictionary, t: float) -> void:
 	_draw_note(Vector2(0, y), alpha)
 
 
-func _draw_notes(lane: int, t: float) -> void:
+func _draw_notes(lane: int, t: float, lane_alpha: float = 1.0) -> void:
 	# 1) 先畫「正在按住 / 正在淡出」的長條。
 	#    它們的頭部時間可能早就掉出下面的掃描範圍，
 	#    不獨立畫的話，按住超過 0.5 秒整條光柱就會突然不見。
@@ -775,7 +1008,7 @@ func _draw_notes(lane: int, t: float) -> void:
 			continue
 		var hn: Dictionary = _notes[idx]
 		if int(hn.lane) == lane:
-			_draw_note_entry(hn, t)
+			_draw_note_entry(hn, t, lane_alpha)
 
 	# 2) 再掃「還沒被判定」的音符
 	var approach := (judge_y + 80.0) / pps
@@ -786,7 +1019,7 @@ func _draw_notes(lane: int, t: float) -> void:
 			break
 		if int(n.lane) != lane or int(n.state) != 0:
 			continue
-		_draw_note_entry(n, t)
+		_draw_note_entry(n, t, lane_alpha)
 
 
 func _draw_rings() -> void:
@@ -823,8 +1056,8 @@ func _draw_hud(t: float) -> void:
 		draw_rect(Rect2(0, 0, w, 3.0), Color(1, 1, 1, 0.06))
 		draw_rect(Rect2(0, 0, w * prog, 3.0), Color(1, 1, 1, 0.72))
 
-	# 分數
-	_text_right(w - 34.0 * s, 52.0 * s, str(score), int(34.0 * s), Color(1, 1, 1, 0.95))
+	# 分數（固定 7 位，滿分 1000000；位數不跳動，眼睛比較好讀）
+	_text_right(w - 34.0 * s, 52.0 * s, "%07d" % score, int(34.0 * s), Color(1, 1, 1, 0.95))
 
 	# 準度
 	var acc := 0.0
@@ -970,6 +1203,36 @@ func _make_dot_texture(size: int = 32) -> Texture2D:
 # 給結算畫面用
 # --------------------------------------------------------------------------
 
+## 音檔完全播完的「歌曲時間」。沒有音檔（或長度未知）時回傳 INF。
+func song_end_time() -> float:
+	if conductor == null or conductor.player == null:
+		return INF
+	var stream: AudioStream = conductor.player.stream
+	if stream == null:
+		return INF
+	var length := stream.get_length()
+	if length <= 0.0:
+		return INF
+	# song_time 的定義是「播放位置 − 玩家偏移」，所以音檔結尾要扣掉同一個偏移
+	return length - conductor.offset
+
+
+## 什麼時候進結算畫面。
+##
+## 規則：歌曲結束 / 譜面內容結束，取「先發生的那一個」再等 3 秒。
+##   * 歌曲先結束 → 歌曲結束 + 3 秒
+##   * 譜面先結束 → 最後一顆音符 / 特效 / 軌道 / 視窗事件結束 + 3 秒
+## 取先結束的那一個是為了避免「音檔尾巴很長、譜面早就打完」時要空等好幾分鐘。
+func finish_time() -> float:
+	if chart == null:
+		return INF
+	var chart_end := chart.content_end_time()
+	var song_end := song_end_time()
+	if song_end < INF:
+		chart_end = minf(chart_end, song_end)
+	return chart_end + RESULT_DELAY
+
+
 func accuracy() -> float:
 	if acc_count == 0:
 		return 0.0
@@ -977,15 +1240,7 @@ func accuracy() -> float:
 
 
 func grade_letter() -> String:
-	var a := accuracy()
-	if counts["MISS"] == 0 and a >= 0.995:
-		return "SS"
-	if a >= 0.97:
-		return "S"
-	if a >= 0.92:
-		return "A"
-	if a >= 0.85:
-		return "B"
-	if a >= 0.75:
-		return "C"
+	for tier in GRADE_TIERS:
+		if score >= int(tier.min):
+			return str(tier.letter)
 	return "D"

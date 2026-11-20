@@ -18,9 +18,22 @@ extends RefCounted
 ##               "bpm_segments": [ { "beat": 0, "bpm": 120 } ] },
 ##   "notes":  [ { "beat": 8.0, "lane": 0, "len": 0.0 } ],
 ##   "lanes":  [ { "beat": 0, "lane": 0, "x": 0, "y": 0, "rot": 0,
-##                 "scale": 1.0, "ease": "smooth" } ],
-##   "windows":[ { "beat": 32, "type": "split", "count": 2 } ]
+##                 "scale": 1.0, "alpha": 1.0, "ease": "smooth" } ],
+##   "windows":[ { "beat": 32, "type": "split",
+##                 "axis": "vertical", "move": "mirror" },
+##               { "beat": 40, "type": "resize", "w": 0.8, "h": 0.9,
+##                 "anchor": "center", "duration": 0.5 } ],
+##   "effects":[ { "beat": 48, "type": "flash", "duration": 0.35, "strength": 1.0 } ],
+##   "settings":{ "note_style": "any", "note_scale": 1.0,
+##                "borderless": true, "fullscreen": "allow",
+##                "background": "res://assets/backgrounds/bg.jpg",
+##                "background_dim": 0.45,
+##                "window": { "width": 1280, "height": 720,
+##                            "x": 0, "y": 0, "centered": true } }
 ## }
+##
+## settings 是「譜面自己的預設值」，可以整段省略。它讓譜面作者決定
+## 這首歌的長相（例如整首只能用長條），玩家設定則在譜面沒指定時才生效。
 
 const FORMAT := "reverb-chart"
 
@@ -45,6 +58,32 @@ var lane_events: Array = []
 
 ## [{ beat, time, type, ... }]
 var window_events: Array = []
+
+## [{ beat, time, type, duration, strength }]
+## 畫面特效事件（白閃 / 故障 / 反色 / 模糊 / 色散 / 掃描線 / 暗角 / 震動 / 縮放）。
+## 由 EffectDirector 播放，跟視窗事件一樣以拍為單位。
+var effect_events: Array = []
+
+## --- 譜面層級設定（settings 區塊）---
+## 音符樣式："any" = 依玩家設定／"bar" = 只能長條／"orb" = 只能圓球
+var note_style := "any"
+## 音符大小倍率（會再乘上玩家設定）
+var note_scale := 1.0
+## 進場時是否使用無邊框視窗
+var borderless := true
+## 是否允許這個譜面切換全螢幕："allow" / "block"
+var fullscreen := "allow"
+## 背景圖路徑（空字串 = 純黑）。只存路徑，圖片本身放在 assets/backgrounds/。
+var background := ""
+## 背景壓暗程度（0 = 原圖，1 = 全黑）。讓白色音符仍然是畫面最亮的東西。
+var background_dim := 0.45
+## 視窗初始狀態。寬或高 <= 0 表示「沿用玩家目前的視窗」。
+var window_w := 0
+var window_h := 0
+var window_x := 0
+var window_y := 0
+## true = 開場自動置中（忽略 window_x / window_y）
+var window_centered := true
 
 ## 歌曲長度（秒），載入時由最後一個音符推算
 var duration := 0.0
@@ -141,6 +180,28 @@ static func from_dict(data: Dictionary) -> Chart:
 	chart.offset = float(timing.get("offset", 0.0))
 	chart._parse_bpm(timing.get("bpm_segments", []))
 
+	# --- 譜面設定（可省略）---
+	var cfg = data.get("settings", {})
+	if typeof(cfg) == TYPE_DICTIONARY:
+		var style := str(cfg.get("note_style", "any"))
+		chart.note_style = style if style in ["any", "bar", "orb"] else "any"
+		chart.note_scale = clampf(float(cfg.get("note_scale", 1.0)), 0.4, 2.5)
+		chart.borderless = bool(cfg.get("borderless", true))
+		var fs := str(cfg.get("fullscreen", "allow"))
+		chart.fullscreen = fs if fs in ["allow", "block"] else "allow"
+		# 背景：只接受字串路徑；空字串 / 缺欄位 = 純黑
+		var bg = cfg.get("background", "")
+		chart.background = str(bg) if typeof(bg) == TYPE_STRING else ""
+		chart.background_dim = clampf(float(cfg.get("background_dim", 0.45)), 0.0, 1.0)
+		# 視窗初始狀態（可省略）
+		var win = cfg.get("window", {})
+		if typeof(win) == TYPE_DICTIONARY:
+			chart.window_w = maxi(int(win.get("width", 0)), 0)
+			chart.window_h = maxi(int(win.get("height", 0)), 0)
+			chart.window_x = int(win.get("x", 0))
+			chart.window_y = int(win.get("y", 0))
+			chart.window_centered = bool(win.get("centered", true))
+
 	# --- 音符 ---
 	for raw in data.get("notes", []):
 		if typeof(raw) != TYPE_DICTIONARY:
@@ -174,6 +235,8 @@ static func from_dict(data: Dictionary) -> Chart:
 			"y": float(raw.get("y", 0.0)),
 			"rot": float(raw.get("rot", 0.0)),
 			"scale": float(raw.get("scale", 1.0)),
+			# 單軌透明度：這一軌的底色、判定球與「這一軌的音符」一起變淡
+			"alpha": clampf(float(raw.get("alpha", 1.0)), 0.0, 1.0),
 			"ease": str(raw.get("ease", "smooth")),
 			"time": chart.beat_to_song_time(beat),
 		})
@@ -183,6 +246,9 @@ static func from_dict(data: Dictionary) -> Chart:
 	for raw in data.get("windows", []):
 		if typeof(raw) != TYPE_DICTIONARY:
 			continue
+		# 舊譜面可能還有「全螢幕開關」事件，這個事件已經移除，直接忽略。
+		if str(raw.get("type", "")) == "fullscreen":
+			continue
 		var ev: Dictionary = raw.duplicate(true)
 		var beat := float(raw.get("beat", 0.0))
 		ev["beat"] = beat
@@ -190,15 +256,43 @@ static func from_dict(data: Dictionary) -> Chart:
 		chart.window_events.append(ev)
 	chart.window_events.sort_custom(func(a, b): return float(a.time) < float(b.time))
 
+	# --- 特效事件 ---
+	for raw in data.get("effects", []):
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var fx: Dictionary = raw.duplicate(true)
+		var fx_beat := float(raw.get("beat", 0.0))
+		fx["beat"] = fx_beat
+		fx["time"] = chart.beat_to_song_time(fx_beat)
+		fx["type"] = str(raw.get("type", "flash"))
+		fx["duration"] = maxf(float(raw.get("duration", 0.35)), 0.05)
+		fx["strength"] = clampf(float(raw.get("strength", 1.0)), 0.0, 1.0)
+		chart.effect_events.append(fx)
+	chart.effect_events.sort_custom(func(a, b): return float(a.time) < float(b.time))
+
 	# --- 長度 ---
-	var last := 0.0
-	for n in chart.notes:
-		last = maxf(last, float(n.end_time))
-	for ev in chart.window_events:
-		last = maxf(last, float(ev.time))
-	chart.duration = last + 1.5
+	chart.duration = chart.content_end_time()
 
 	return chart
+
+
+## 譜面「全部內容都結束」的秒數（歌曲時間）。
+##
+## 結算判定要用：最後一顆音符的尾端、最後一個軌道關鍵影格、
+## 最後一個視窗事件（含動畫長度）、最後一個特效（含持續時間）。
+## 注意：軌道關鍵影格沒有「結束」的概念（狀態會一直保持），
+## 所以只取它的發生時間。
+func content_end_time() -> float:
+	var last := 0.0
+	for n in notes:
+		last = maxf(last, float(n.end_time))
+	for ev in lane_events:
+		last = maxf(last, float(ev.time))
+	for ev in window_events:
+		last = maxf(last, float(ev.time) + maxf(float(ev.get("duration", 0.0)), 0.0))
+	for ev in effect_events:
+		last = maxf(last, float(ev.time) + maxf(float(ev.get("duration", 0.0)), 0.0))
+	return last
 
 
 func _parse_bpm(raw_segments) -> void:

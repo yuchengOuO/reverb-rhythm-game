@@ -1,0 +1,154 @@
+{
+ "format": "reverb-chart",
+ "version": 1,
+ "meta": {
+  "title": "特效示範",
+  "artist": "12 秒跑完 7 種特效",
+  "difficulty": "Demo",
+  "level": 1,
+  "audio": "res://assets/audio/くるぶっこちゃん -  Message.mp3"
+ },
+ "timing": {
+  "offset": 1.2,
+  "bpm_segments": [
+   {
+    "beat": 0,
+    "bpm": 220
+   }
+  ]
+ },
+ "settings": {
+  "note_style": "any",
+  "note_scale": 1.0,
+  "borderless": true,
+  "fullscreen": "allow"
+ },
+ "notes": [
+  {
+   "beat": 16,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 17.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 19,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 20.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 22,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 23.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 25,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 26.5,
+   "lane": 3,
+   "len": 0
+  },
+  {
+   "beat": 31.9167,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 32.4167,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 32.9167,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 34.125,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 35.4167,
+   "lane": 0,
+   "len": 1
+  },
+  {
+   "beat": 37.9167,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 38.4167,
+   "lane": 0,
+   "len": 0
+  },
+  {
+   "beat": 38.9167,
+   "lane": 0,
+   "len": 1
+  }
+ ],
+ "lanes": [],
+ "windows": [],
+ "effects": [
+  {
+   "beat": 12,
+   "type": "flash",
+   "duration": 0.35,
+   "strength": 1.0
+  },
+  {
+   "beat": 16,
+   "type": "glitch",
+   "duration": 0.8,
+   "strength": 1.0
+  },
+  {
+   "beat": 20,
+   "type": "invert",
+   "duration": 0.6,
+   "strength": 1.0
+  },
+  {
+   "beat": 24,
+   "type": "scanline",
+   "duration": 1.2,
+   "strength": 1.0
+  },
+  {
+   "beat": 28,
+   "type": "chroma",
+   "duration": 0.8,
+   "strength": 1.0
+  },
+  {
+   "beat": 32,
+   "type": "blur",
+   "duration": 0.9,
+   "strength": 1.0
+  },
+  {
+   "beat": 36,
+   "type": "vignette",
+   "duration": 1.2,
+   "strength": 1.0
+  }
+ ]
+}
